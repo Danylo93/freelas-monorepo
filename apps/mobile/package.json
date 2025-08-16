@@ -1,0 +1,32 @@
+{
+  "name": "@freelas/mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "expo": "~53.0.20",
+    "expo-location": "~18.1.6",
+    "expo-network": "~7.1.5",
+    "expo-status-bar": "~2.2.3",
+    "react": "19.0.0",
+    "react-native": "0.79.5",
+    "react-native-maps": "1.20.1",
+    "socket.io-client": "^4.7.5"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@types/react": "~19.0.10",
+    "metro": "0.82.5",
+    "metro-config": "0.82.5",
+    "metro-core": "0.82.5",
+    "metro-resolver": "^0.82.0",
+    "metro-runtime": "0.82.5",
+    "typescript": "~5.8.3"
+  },
+  "private": true
+}

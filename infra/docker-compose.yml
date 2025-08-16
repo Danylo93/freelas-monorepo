@@ -1,0 +1,30 @@
+version: "3.9"
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.1.14
+    command:
+      - redpanda start --mode dev-container --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false --kafka-addr 0.0.0.0:9092,0.0.0.0:19092 --advertise-kafka-addr redpanda:9092,localhost:19092
+    ports: ["19092:19092","19644:9644"]
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+  api:
+    image: node:20
+    working_dir: /app
+    command: sh -lc "corepack enable && pnpm i && pnpm --filter @freelas/api dev"
+    volumes: ["..:/app"]
+    environment:
+      - API_PORT=3001
+      - KAFKA_BROKERS=redpanda:9092
+      - REDIS_URL=redis://redis:6379
+    ports: ["3001:3001"]
+    depends_on: [redpanda, redis]
+  matcher:
+    image: node:20
+    working_dir: /app
+    command: sh -lc "corepack enable && pnpm i && pnpm --filter @freelas/matcher dev"
+    volumes: ["..:/app"]
+    environment:
+      - KAFKA_BROKERS=redpanda:9092
+      - REDIS_URL=redis://redis:6379
+    depends_on: [redpanda, redis]

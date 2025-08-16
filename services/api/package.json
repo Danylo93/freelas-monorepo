@@ -1,0 +1,23 @@
+{
+  "name": "@freelas/api",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "@fastify/cors": "^9.0.1",
+    "socket.io": "^4.7.5",
+    "kafkajs": "^2.2.4",
+    "ioredis": "^5.4.1",
+    "zod": "^3.23.8",
+    "nanoid": "^5.0.7",
+    "@freelas/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}

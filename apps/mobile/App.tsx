@@ -14,7 +14,7 @@ const API_URL = Platform.select({
   default: "http://localhost:3001",
 });
 
-// fallback: Centro de SP
+// fallback: Centro de SP teste
 const DEFAULT_COORDS = { lat: -23.55052, lng: -46.633308 };
 
 type LatLng = { lat: number; lng: number };

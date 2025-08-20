@@ -1,3 +1,4 @@
+
 import { initKafka } from "./kafka";
 import { startMatcher } from "./engine";
 
@@ -10,4 +11,5 @@ async function main() {
 main().catch(err => {
   console.error(err);
   process.exit(1);
+
 });

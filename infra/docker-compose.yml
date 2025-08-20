@@ -9,6 +9,7 @@ services:
     image: redis:7-alpine
     ports: ["6379:6379"]
   deps:
+
     image: node:20
     working_dir: /app
     command: sh -lc "corepack enable && pnpm install --filter './packages/*' --filter './services/*' && tail -f /dev/null"
@@ -17,6 +18,7 @@ services:
     image: node:20
     working_dir: /app/services/api
     command: sh -lc "corepack enable && pnpm dev"
+
     volumes: ["..:/app"]
     environment:
       - API_PORT=3001
@@ -26,8 +28,10 @@ services:
     depends_on: [deps, redpanda, redis]
   matcher:
     image: node:20
+
     working_dir: /app/services/matcher
     command: sh -lc "corepack enable && pnpm dev"
+
     volumes: ["..:/app"]
     environment:
       - KAFKA_BROKERS=redpanda:9092

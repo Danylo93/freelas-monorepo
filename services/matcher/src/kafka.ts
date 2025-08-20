@@ -1,5 +1,5 @@
 import { Kafka } from "kafkajs";
-import { config } from "./config";
+import { config } from "./config.js";
 
 const kafka = new Kafka({ clientId: "freelas-matcher", brokers: config.kafkaBrokers });
 

@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { Server } from "socket.io";
-import { redis, GEO_KEY, PROVIDER_KEY } from "../redis";
+import { redis, GEO_KEY, PROVIDER_KEY } from "../redis.js";
 
 export function registerProviderRoutes(app: FastifyInstance, io: Server) {
   app.post("/providers/register", async (req, rep) => {

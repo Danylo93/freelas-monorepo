@@ -1,11 +1,11 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { config } from "./config";
-import { setupWebsocket } from "./websocket";
-import { initKafka } from "./kafka";
-import { registerKafkaConsumers } from "./consumers";
-import { registerProviderRoutes } from "./routes/providers";
-import { registerRequestRoutes } from "./routes/requests";
+import { config } from "./config.js";
+import { setupWebsocket } from "./websocket.js";
+import { initKafka } from "./kafka.js";
+import { registerKafkaConsumers } from "./consumers.js";
+import { registerProviderRoutes } from "./routes/providers.js";
+import { registerRequestRoutes } from "./routes/requests.js";
 
 export async function startServer() {
   const app = Fastify({ logger: true });

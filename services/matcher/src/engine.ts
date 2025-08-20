@@ -1,11 +1,11 @@
 import { Topics, ServiceRequest, ServiceOffer, etaMin, price } from "@freelas/shared";
-import { consumer, producer } from "./kafka";
-import { redis, GEO_KEY, PROVIDER_KEY } from "./redis";
+import { consumer, producer } from "./kafka.js";
+import { redis, GEO_KEY, PROVIDER_KEY } from "./redis.js";
 
 export async function startMatcher() {
   await consumer.subscribe({ topic: Topics.ServiceRequested, fromBeginning: false });
   await consumer.run({
-    eachMessage: async ({ message }) => {
+    eachMessage: async ({ message }: { message: { value?: Buffer } }) => {
       if (!message.value) return;
       const req = JSON.parse(message.value.toString()) as ServiceRequest;
       const radiusKm = 8;

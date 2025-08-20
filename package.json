@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748",
   "scripts": {
     "build": "pnpm -r --filter ./packages/* --filter ./services/* --filter ./apps/* run build",
-    "dev:all": "concurrently -n api,matcher,web -c yellow,cyan,magenta \"pnpm --filter @freelas/api dev\" \"pnpm --filter @freelas/matcher dev\" \"pnpm --filter @freelas/web dev\"",
+    "dev:all": "pnpm --filter @freelas/shared build && concurrently -n api,matcher,web -c yellow,cyan,magenta \"pnpm --filter @freelas/api dev\" \"pnpm --filter @freelas/matcher dev\" \"pnpm --filter @freelas/web dev\"",
     "format": "prettier -w .",
     "dev:mobile": "pnpm --filter @freelas/mobile start"
   },

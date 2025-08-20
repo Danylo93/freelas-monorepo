@@ -9,6 +9,7 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
+      "@freelas/shared": ["packages/shared/src"],
       "@freelas/shared/*": ["packages/shared/src/*"]
     }
   }

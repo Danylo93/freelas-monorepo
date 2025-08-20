@@ -1,7 +1,6 @@
 import { Kafka } from "kafkajs";
 import Redis from "ioredis";
-import { Topics, ServiceRequest, ServiceOffer } from "@freelas/shared/src/events";
-import { etaMin, price } from "@freelas/shared/src/utils";
+import { Topics, ServiceRequest, ServiceOffer, etaMin, price } from "@freelas/shared";
 
 const kafka = new Kafka({ clientId:"freelas-matcher", brokers:(process.env.KAFKA_BROKERS||"localhost:19092").split(",") });
 const consumer = kafka.consumer({ groupId:"matcher" });

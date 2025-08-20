@@ -8,23 +8,28 @@ services:
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
-  api:
+  deps:
     image: node:20
     working_dir: /app
-    command: sh -lc "corepack enable && pnpm i && pnpm --filter @freelas/api dev"
+    command: sh -lc "corepack enable && pnpm install --filter './packages/*' --filter './services/*' && tail -f /dev/null"
+    volumes: ["..:/app"]
+  api:
+    image: node:20
+    working_dir: /app/services/api
+    command: sh -lc "corepack enable && pnpm dev"
     volumes: ["..:/app"]
     environment:
       - API_PORT=3001
       - KAFKA_BROKERS=redpanda:9092
       - REDIS_URL=redis://redis:6379
     ports: ["3001:3001"]
-    depends_on: [redpanda, redis]
+    depends_on: [deps, redpanda, redis]
   matcher:
     image: node:20
-    working_dir: /app
-    command: sh -lc "corepack enable && pnpm i && pnpm --filter @freelas/matcher dev"
+    working_dir: /app/services/matcher
+    command: sh -lc "corepack enable && pnpm dev"
     volumes: ["..:/app"]
     environment:
       - KAFKA_BROKERS=redpanda:9092
       - REDIS_URL=redis://redis:6379
-    depends_on: [redpanda, redis]
+    depends_on: [deps, redpanda, redis]

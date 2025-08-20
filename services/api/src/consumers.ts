@@ -1,6 +1,6 @@
 import { Topics } from "@freelas/shared";
 import type { Server } from "socket.io";
-import { consumer } from "./kafka";
+import { consumer } from "./kafka.js";
 
 export async function registerKafkaConsumers(io: Server) {
   await consumer.subscribe({ topic: Topics.ServiceOffer, fromBeginning: false });

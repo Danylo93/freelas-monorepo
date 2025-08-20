@@ -1,6 +1,6 @@
 import { Topics, ServiceRequest, ServiceOffer, etaMin, price } from "@freelas/shared";
-import { consumer, producer } from "./kafka";
-import { redis, GEO_KEY, PROVIDER_KEY } from "./redis";
+import { consumer, producer } from "./kafka.js";
+import { redis, GEO_KEY, PROVIDER_KEY } from "./redis.js";
 
 export async function startMatcher() {
   await consumer.subscribe({ topic: Topics.ServiceRequested, fromBeginning: false });

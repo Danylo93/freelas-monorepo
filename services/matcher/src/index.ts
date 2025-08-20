@@ -1,6 +1,6 @@
 
-import { initKafka } from "./kafka";
-import { startMatcher } from "./engine";
+import { initKafka } from "./kafka.js";
+import { startMatcher } from "./engine.js";
 
 async function main() {
   await initKafka();

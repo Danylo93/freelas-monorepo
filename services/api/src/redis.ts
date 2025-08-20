@@ -1,5 +1,7 @@
 import Redis from "ioredis";
+
 import { haversineKm } from "@freelas/shared";
+
 import { config } from "./config.js";
 
 class MockRedis {

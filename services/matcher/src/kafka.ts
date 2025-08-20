@@ -1,5 +1,7 @@
 import { Kafka } from "kafkajs";
+
 import { EventEmitter } from "events";
+
 import { config } from "./config.js";
 
 let consumer: any;

@@ -6,7 +6,7 @@ import { Kafka } from "kafkajs";
 import Redis from "ioredis";
 import { z } from "zod";
 import { nanoid } from "nanoid";
-import { Topics } from "@freelas/shared/src/events";
+import { Topics } from "@freelas/shared";
 
 const PORT = Number(process.env.API_PORT || 3001);
 const KAFKA_BROKERS = (process.env.KAFKA_BROKERS || "localhost:19092").split(",");

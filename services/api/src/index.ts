@@ -1,5 +1,6 @@
 
-import { startServer } from "./server";
+// Explicit file extensions are required for Node.js ESM resolution
+import { startServer } from "./server.js";
 
 
 startServer().catch(err => {

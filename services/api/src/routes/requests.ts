@@ -3,8 +3,8 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { Server } from "socket.io";
 import { Topics } from "@freelas/shared";
-import { redis, REQUEST_KEY, REQ_LOCK_KEY } from "../redis";
-import { producer } from "../kafka";
+import { redis, REQUEST_KEY, REQ_LOCK_KEY } from "../redis.js";
+import { producer } from "../kafka.js";
 
 export function registerRequestRoutes(app: FastifyInstance, io: Server) {
   app.post("/requests", async (req, rep) => {

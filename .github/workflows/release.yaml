@@ -12,14 +12,16 @@ on:
         default: "dev"
 
 jobs:
-  build_and_push_images:
+  prepare:
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [api, matcher, web]
+    outputs:
+      env: ${{ steps.vars.outputs.env }}
+      sha: ${{ steps.vars.outputs.sha }}
+      docker_org: ${{ steps.vars.outputs.docker_org }}
+      api_url: ${{ steps.vars.outputs.api_url }}
     steps:
       - name: Checkout code (same SHA as CI)
         uses: actions/checkout@v4
@@ -30,39 +32,75 @@ jobs:
         id: vars
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            ENV="${{ github.event.inputs.environment }}"
-            SHA="${{ github.sha }}"
-            REF_NAME="${{ github.ref_name }}"
+            ENV="${{ github.event.inputs.environment }}"; SHA="${{ github.sha }}"
           else
-            ENV_BRANCH="${{ github.event.workflow_run.head_branch }}"
-            SHA="${{ github.event.workflow_run.head_sha }}"
-            case "$ENV_BRANCH" in
-              develop) ENV=dev ;;
-              hmg) ENV=hmg ;;
-              main|master) ENV=prd ;;
-              *) ENV=dev ;;
-            esac
+            BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}"
+            case "$BR" in develop) ENV=dev ;; hmg) ENV=hmg ;; main|master) ENV=prd ;; *) ENV=dev ;; esac
           fi
-          echo "ENV=$ENV" >> $GITHUB_ENV
-          echo "SHA=$SHA" >> $GITHUB_ENV
-          echo "TAG_ENV=$ENV" >> $GITHUB_ENV
-          echo "TAG_SHA=$ENV-$SHA" >> $GITHUB_ENV
           ORG="${{ secrets.DOCKER_USERNAME }}"; if [ -z "$ORG" ]; then ORG="dan1993"; fi
-          echo "DOCKER_ORG=$ORG" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_API_URL=http://api.$ENV.localtest.me" >> $GITHUB_ENV
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+          echo "env=$ENV" >> $GITHUB_OUTPUT
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "docker_org=$ORG" >> $GITHUB_OUTPUT
+          echo "api_url=http://api.$ENV.localtest.me" >> $GITHUB_OUTPUT
+  release_api:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME || 'dan1993' }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build and push ${{ matrix.service }}
+      - name: Build & push API
         uses: docker/build-push-action@v6
         with:
-          context: ./${{ matrix.service }}
+          context: ./api
           push: true
           tags: |
-            ${{ env.DOCKER_ORG }}/freelas-${{ matrix.service }}:${{ env.TAG_ENV }}
-            ${{ env.DOCKER_ORG }}/freelas-${{ matrix.service }}:${{ env.TAG_SHA }}
+            ${{ needs.prepare.outputs.docker_org }}/freelas-api:${{ needs.prepare.outputs.env }}
+            ${{ needs.prepare.outputs.docker_org }}/freelas-api:${{ needs.prepare.outputs.env }}-${{ needs.prepare.outputs.sha }}
+  release_matcher:
+    needs: [prepare, release_api]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || 'dan1993' }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build & push Matcher
+        uses: docker/build-push-action@v6
+        with:
+          context: ./matcher
+          push: true
+          tags: |
+            ${{ needs.prepare.outputs.docker_org }}/freelas-matcher:${{ needs.prepare.outputs.env }}
+            ${{ needs.prepare.outputs.docker_org }}/freelas-matcher:${{ needs.prepare.outputs.env }}-${{ needs.prepare.outputs.sha }}
+  release_web:
+    needs: [prepare, release_matcher]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || 'dan1993' }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build & push Web
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          push: true
+          tags: |
+            ${{ needs.prepare.outputs.docker_org }}/freelas-web:${{ needs.prepare.outputs.env }}
+            ${{ needs.prepare.outputs.docker_org }}/freelas-web:${{ needs.prepare.outputs.env }}-${{ needs.prepare.outputs.sha }}
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ env.NEXT_PUBLIC_API_URL }}
-
+            NEXT_PUBLIC_API_URL=${{ needs.prepare.outputs.api_url }}

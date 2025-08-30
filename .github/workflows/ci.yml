@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop, hmg ]
+  pull_request:
+    branches: [ main, master, develop, hmg ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+      - name: API build+test
+        run: |
+          cd api
+          corepack enable
+          yarn set version classic
+          yarn install --frozen-lockfile
+          yarn build
+          yarn test
+      - name: Matcher build+test
+        run: |
+          cd matcher
+          corepack enable
+          yarn set version classic
+          yarn install --frozen-lockfile
+          yarn build
+          yarn test
+      - name: Web build (typecheck)
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+        run: |
+          cd web
+          corepack enable
+          yarn set version classic
+          yarn install --frozen-lockfile
+          yarn build

@@ -1,4 +1,4 @@
-
+import 'dotenv/config';
 import { initKafka } from "./kafka.js";
 import { startMatcher } from "./engine.js";
 

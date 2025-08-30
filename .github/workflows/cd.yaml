@@ -1,0 +1,104 @@
+name: CD (Docker Hub + GitOps)
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev|hmg|prd)"
+        required: false
+        default: "dev"
+
+jobs:
+  build_and_push_images:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, matcher, web]
+    steps:
+      - name: Checkout code (same SHA as CI)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Resolve environment/tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+            REF_NAME="${{ github.ref_name }}"
+          else
+            REF_NAME="${{ github.event.workflow_run.head_branch }}"
+            case "$REF_NAME" in
+              develop) ENV=dev ;;
+              hmg) ENV=hmg ;;
+              main|master) ENV=prd ;;
+              *) ENV=dev ;;
+            esac
+          fi
+          echo "ENV=$ENV" >> $GITHUB_ENV
+          echo "TAG=$ENV" >> $GITHUB_ENV
+          ORG="${{ secrets.DOCKER_USERNAME }}"
+          if [ -z "$ORG" ]; then ORG="dan1993"; fi
+          echo "DOCKER_ORG=$ORG" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_API_URL=http://api.$ENV.localtest.me" >> $GITHUB_ENV
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.DOCKER_ORG }}/freelas-${{ matrix.service }}:${{ env.TAG }}
+            ${{ env.DOCKER_ORG }}/freelas-${{ matrix.service }}:${{ env.TAG }}-${{ github.event.workflow_run.head_sha || github.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.NEXT_PUBLIC_API_URL }}
+
+  update_gitops_repo:
+    needs: build_and_push_images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.GITOPS_REPO }}
+          token: ${{ secrets.DOCKER_PASSWORD }}
+          path: gitops
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "5.3.0"
+      - name: Determine environment
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          else
+            case "${{ github.event.workflow_run.head_branch }}" in
+              develop) ENV=dev ;;
+              hmg) ENV=hmg ;;
+              main|master) ENV=prd ;;
+              *) ENV=dev ;;
+            esac
+          fi
+          echo "ENV=$ENV" >> $GITHUB_ENV
+      - name: Edit images with Kustomize and commit
+        run: |
+          cd gitops/k8s/overlays/${ENV}
+          # Atualiza imagens para Docker Hub
+          kustomize edit set image freelas-api=${DOCKER_ORG}/freelas-api:${ENV}
+          kustomize edit set image freelas-matcher=${DOCKER_ORG}/freelas-matcher:${ENV}
+          kustomize edit set image freelas-web=${DOCKER_ORG}/freelas-web:${ENV}
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add .
+          git commit -m "chore(cd): set images to ${ENV} (${GITHUB_SHA:0:7})" || echo "No changes"
+          git push

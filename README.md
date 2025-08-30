@@ -89,3 +89,81 @@ kubectl apply -k k8s/overlays/apps
 # Tudo de uma vez
 kubectl apply -k k8s
 ```
+
+### Ambientes (dev | hmg | prd) com Ingress e HPA
+
+Pré‑requisitos adicionais (gratuitos):
+- Metrics Server: `kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml`
+- NGINX Ingress Controller:
+  - Helm (recomendado):
+    - `helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx`
+    - `helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace`
+  - Ou manifest estático:
+    - `kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0/deploy/static/provider/cloud/deploy.yaml`
+
+Overlays prontos:
+```bash
+# DEV (hosts: api.dev.localtest.me, web.dev.localtest.me)
+kubectl apply -k k8s/overlays/dev
+
+# HMG (hosts: api.hmg.localtest.me, web.hmg.localtest.me)
+kubectl apply -k k8s/overlays/hmg
+
+# PRD (hosts: api.prd.localtest.me, web.prd.localtest.me)
+kubectl apply -k k8s/overlays/prd
+```
+
+Imagens por ambiente (tags):
+```bash
+# dev
+docker build -t freelas-api:dev ./api
+docker build -t freelas-matcher:dev ./matcher
+docker build --build-arg NEXT_PUBLIC_API_URL=https://api.dev.localtest.me -t freelas-web:dev ./web
+
+# hmg
+docker build -t freelas-api:hmg ./api
+docker build -t freelas-matcher:hmg ./matcher
+docker build --build-arg NEXT_PUBLIC_API_URL=https://api.hmg.localtest.me -t freelas-web:hmg ./web
+
+# prd
+docker build -t freelas-api:prd ./api
+docker build -t freelas-matcher:prd ./matcher
+docker build --build-arg NEXT_PUBLIC_API_URL=https://api.prd.localtest.me -t freelas-web:prd ./web
+```
+
+Notas:
+- `localtest.me` resolve para 127.0.0.1; redireciona para o Ingress local (Docker Desktop/Kind expõe via LoadBalancer/NodePort). Se preferir, adicione entradas no `hosts` e use domínios próprios.
+- HPA requer `requests` de CPU (já definidos) e metrics‑server instalado.
+
+## Ambientes (dev | hmg | prd)
+
+- Variável `APP_ENV` guia o comportamento e credenciais. Use `.env` locais por serviço ou variáveis no cluster/CI.
+- Exemplo de `.env.example` inclui todas as chaves. Para o Web, `NEXT_PUBLIC_API_URL` deve ser acessível pelo navegador.
+- K8s via Kustomize permite aplicar somente infra (`k8s/overlays/infra`) e apps (`k8s/overlays/apps`). Você pode criar overlays específicos por ambiente ajustando imagens, variáveis e Ingress.
+
+## Testes e Qualidade
+
+- Testes unitários com Vitest em `api` e `matcher`:
+  - `cd api && yarn test`
+  - `cd matcher && yarn test`
+- CI GitHub Actions (`.github/workflows/ci.yml`) executa build + testes a cada push/PR.
+- API segue princípios SOLID/DDD mínimos: rotas delegam para serviços (`src/application/*`) e infraestrutura (`src/redis.ts`).
+
+## CI/CD (GitHub Actions)
+
+- CI: `.github/workflows/ci.yml` executa build e testes (API/Matcher) e valida build do Web a cada push/PR.
+- CD: `.github/workflows/cd.yaml` publica imagens no Docker Hub e atualiza o repositório GitOps (ArgoCD)
+  - Disparo automático após CI concluir com sucesso (workflow_run do "CI")
+  - Branch `develop` → `dev`, `hmg` → `hmg`, `main/master` → `prd`
+  - Também pode ser disparado manualmente (`workflow_dispatch`)
+
+Secrets necessários no repositório:
+- Docker Hub:
+  - `DOCKER_USERNAME` e `DOCKER_PASSWORD` (se não definir, usa `dan1993` como padrão)
+- GitOps (repositório monitorado pelo ArgoCD):
+  - `GITOPS_REPO` (ex.: `usuario/gitops-argocd`)
+  - `GITOPS_TOKEN` (PAT com escopo `repo`) 
+
+Notas do deploy:
+- O pipeline ajusta as imagens no overlay do repositório GitOps e faz push — o ArgoCD detecta e sincroniza.
+- Ao buildar Web, é passada `NEXT_PUBLIC_API_URL=http://api.<env>.localtest.me`.

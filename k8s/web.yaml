@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: freelas-web:dev
+          image: freelas-web
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
@@ -58,4 +58,3 @@ spec:
   ports:
     - port: 3000
       targetPort: 3000
-

@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: matcher
-          image: freelas-matcher:dev
+          image: freelas-matcher
           imagePullPolicy: IfNotPresent
           env:
             - name: NODE_ENV
@@ -35,4 +35,3 @@ spec:
             limits:
               cpu: 300m
               memory: 512Mi
-

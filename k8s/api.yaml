@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: freelas-api:dev
+          image: freelas-api
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3001
@@ -66,4 +66,3 @@ spec:
   ports:
     - port: 3001
       targetPort: 3001
-

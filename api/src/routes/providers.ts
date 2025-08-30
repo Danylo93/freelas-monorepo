@@ -1,8 +1,8 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { nanoid } from "nanoid";
 import { Server } from "socket.io";
-import { redis, GEO_KEY, PROVIDER_KEY } from "../redis.js";
+import { ProviderService } from "../application/ProviderService.js";
+import { redis, PROVIDER_KEY, GEO_KEY } from "../redis.js";
 
 export function registerProviderRoutes(app: FastifyInstance, io: Server) {
   app.get("/", async () => {
@@ -21,26 +21,17 @@ export function registerProviderRoutes(app: FastifyInstance, io: Server) {
       isOnline: z.boolean().default(true),
     });
     const p = schema.parse(req.body);
-    const providerId = p.providerId ?? nanoid();
-    await redis.hset(PROVIDER_KEY(providerId), { json: JSON.stringify({ ...p, providerId }) });
-    for (const t of p.serviceTypes) {
-      await redis.geoadd(GEO_KEY(t), p.lng, p.lat, providerId);
-    }
+    const svc = new ProviderService();
+    const { providerId } = await svc.register(p);
     return { ok: true, providerId };
   });
 
   app.post("/providers/:id/location", async (req, rep) => {
     const { id } = req.params as any;
     const { lat, lng } = z.object({ lat: z.number(), lng: z.number() }).parse(req.body);
-    const raw = await redis.hget(PROVIDER_KEY(id), "json");
-    if (!raw) return { ok: false };
-    const p = JSON.parse(raw);
-    p.lat = lat;
-    p.lng = lng;
-    await redis.hset(PROVIDER_KEY(id), { json: JSON.stringify(p) });
-    for (const t of p.serviceTypes) {
-      await redis.geoadd(GEO_KEY(t), lng, lat, id);
-    }
+    const svc = new ProviderService();
+    const ok = await svc.updateLocation(id, lat, lng);
+    if (!ok) return { ok: false };
     io.to(`provider:${id}`).emit("provider:location", { providerId: id, lat, lng, ts: new Date().toISOString() });
     return { ok: true };
   });

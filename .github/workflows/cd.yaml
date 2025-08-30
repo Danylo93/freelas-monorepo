@@ -2,7 +2,7 @@ name: CD (Docker Hub + GitOps)
 
 on:
   workflow_run:
-    workflows: ["ci"]
+    workflows: ["CI"]      
     types: [completed]
 
 permissions:

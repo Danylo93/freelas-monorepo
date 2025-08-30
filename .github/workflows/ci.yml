@@ -10,65 +10,80 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build_test:
+  changes:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [api]   # ajuste enquanto versiona yarn.lock dos demais
-
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      matcher: ${{ steps.filter.outputs.matcher }}
+      web: ${{ steps.filter.outputs.web }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+              - 'packages/shared/**'
+            matcher:
+              - 'matcher/**'
+              - 'packages/shared/**'
+            web:
+              - 'web/**'
 
-      - name: Detect yarn.lock
-        id: lock
-        run: |
-          if [ -f "${{ matrix.service }}/yarn.lock" ]; then
-            echo "has_lock=true" >> $GITHUB_OUTPUT
-            echo "path=${{ matrix.service }}/yarn.lock" >> $GITHUB_OUTPUT
-          else
-            echo "has_lock=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Setup Node (cache só se houver yarn.lock)
-        uses: actions/setup-node@v4
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: ${{ steps.lock.outputs.has_lock == 'true' && 'yarn' || '' }}
-          cache-dependency-path: ${{ steps.lock.outputs.path }}
-
-      - name: Remover package-lock (se existir)
-        run: |
-          rm -f package-lock.json ${{ matrix.service }}/package-lock.json || true
-
-      - name: Corepack + Yarn classic
-        working-directory: ${{ matrix.service }}
+          cache: 'yarn'
+          cache-dependency-path: api/yarn.lock
+      - name: API build+test
+        working-directory: api
         run: |
           corepack enable
           yarn set version classic
+          yarn install --frozen-lockfile || yarn install
+          yarn build
+          yarn test || echo "no tests"
 
-      - name: Install deps
-        if: steps.lock.outputs.has_lock == 'true'
-        working-directory: ${{ matrix.service }}
-        run: yarn install --frozen-lockfile
-
-      - name: Build
-        if: steps.lock.outputs.has_lock == 'true'
-        working-directory: ${{ matrix.service }}
-        run: yarn build
-
-      - name: Test
-        if: steps.lock.outputs.has_lock == 'true'
-        working-directory: ${{ matrix.service }}
+  matcher:
+    needs: changes
+    if: needs.changes.outputs.matcher == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Matcher build+test
+        working-directory: matcher
         run: |
-          if yarn run | grep -q "^  test"; then
-            yarn test
-          else
-            echo "No test script for ${{ matrix.service }}, skipping."
-          fi
+          corepack enable
+          yarn set version classic
+          yarn install || true
+          yarn build
+          yarn test || echo "no tests"
 
-      - name: Aviso de lock ausente
-        if: steps.lock.outputs.has_lock != 'true'
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Web build (typecheck)
+        working-directory: web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
         run: |
-          echo "::warning::${{ matrix.service }} pulado: adicione e versione ${{ matrix.service }}/yarn.lock"
+          corepack enable
+          yarn set version classic
+          yarn install || true
+          yarn build

@@ -151,9 +151,9 @@ Notas:
 
 ## CI/CD (GitHub Actions)
 
-- CI: `.github/workflows/ci.yml` executa build e testes (API/Matcher) e valida build do Web a cada push/PR.
-- CD: `.github/workflows/cd.yaml` publica imagens no Docker Hub e atualiza o repositório GitOps (ArgoCD)
-  - Disparo automático após CI concluir com sucesso (workflow_run do "CI")
+- CI: `.github/workflows/ci.yml` roda por serviço (api/matcher/web) só quando houver mudanças no respectivo diretório.
+- Release: `.github/workflows/release.yaml` builda e publica imagens no Docker Hub por serviço e ambiente (tags: `<env>` e `<env>-<sha>`), disparado automaticamente após o CI com sucesso.
+- CD: `.github/workflows/cd.yaml` atualiza o repositório GitOps com as tags imutáveis (`<env>-<sha>`) para o ArgoCD sincronizar, disparado após o Release.
   - Branch `develop` → `dev`, `hmg` → `hmg`, `main/master` → `prd`
   - Também pode ser disparado manualmente (`workflow_dispatch`)
 

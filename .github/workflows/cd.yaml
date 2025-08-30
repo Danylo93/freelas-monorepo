@@ -2,7 +2,7 @@ name: CD (Docker Hub + GitOps)
 
 on:
   workflow_run:
-    workflows: ["CI"]      
+    workflows: ["Release"]      
     types: [completed]
 
 permissions:
@@ -96,7 +96,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ secrets.GITOPS_REPO }}
-          token: ${{ secrets.GITOPS_PAT }}
+          token: ${{ secrets.GITOPS_TOKEN }}
           path: gitops
 
       - name: Install kustomize

@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev|hmg|prd)"
+        required: false
+        default: "dev"
+
+jobs:
+  build_and_push_images:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, matcher, web]
+    steps:
+      - name: Checkout code (same SHA as CI)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Resolve environment/tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+            SHA="${{ github.sha }}"
+            REF_NAME="${{ github.ref_name }}"
+          else
+            ENV_BRANCH="${{ github.event.workflow_run.head_branch }}"
+            SHA="${{ github.event.workflow_run.head_sha }}"
+            case "$ENV_BRANCH" in
+              develop) ENV=dev ;;
+              hmg) ENV=hmg ;;
+              main|master) ENV=prd ;;
+              *) ENV=dev ;;
+            esac
+          fi
+          echo "ENV=$ENV" >> $GITHUB_ENV
+          echo "SHA=$SHA" >> $GITHUB_ENV
+          echo "TAG_ENV=$ENV" >> $GITHUB_ENV
+          echo "TAG_SHA=$ENV-$SHA" >> $GITHUB_ENV
+          ORG="${{ secrets.DOCKER_USERNAME }}"; if [ -z "$ORG" ]; then ORG="dan1993"; fi
+          echo "DOCKER_ORG=$ORG" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_API_URL=http://api.$ENV.localtest.me" >> $GITHUB_ENV
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || 'dan1993' }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.DOCKER_ORG }}/freelas-${{ matrix.service }}:${{ env.TAG_ENV }}
+            ${{ env.DOCKER_ORG }}/freelas-${{ matrix.service }}:${{ env.TAG_SHA }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.NEXT_PUBLIC_API_URL }}
+

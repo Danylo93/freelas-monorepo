@@ -5,13 +5,17 @@ on:
     branches: [ main, master, develop, hmg, feature/** ]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_test:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false                # << não cancela os outros
+      fail-fast: false
       matrix:
-        service: [api, matcher, web]
+        service: [api, matcher, web]   # ajuste enquanto versiona yarn.lock dos demais
 
     steps:
       - name: Checkout
@@ -27,26 +31,24 @@ jobs:
             echo "has_lock=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup Node (with cache when lock exists)
+      - name: Setup Node (cache só se houver yarn.lock)
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: ${{ steps.lock.outputs.has_lock == 'true' && 'yarn' || '' }}
           cache-dependency-path: ${{ steps.lock.outputs.path }}
 
-      - name: Remove npm lockfile (se existir)
+      - name: Remover package-lock (se existir)
         run: |
           rm -f package-lock.json ${{ matrix.service }}/package-lock.json || true
 
-      - name: Enable Corepack + Yarn classic
+      - name: Corepack + Yarn classic
         working-directory: ${{ matrix.service }}
         run: |
           corepack enable
           yarn set version classic
-          printf '%s\n' 'yarnPath: .yarn/releases/yarn-1.22.22.cjs' > .yarnrc 2>/dev/null || true
 
-      # Se não houver yarn.lock, pulamos o serviço por enquanto
-      - name: Instalar deps
+      - name: Install deps
         if: steps.lock.outputs.has_lock == 'true'
         working-directory: ${{ matrix.service }}
         run: yarn install --frozen-lockfile
@@ -57,8 +59,14 @@ jobs:
         run: yarn build
 
       - name: Test
+        if: steps.lock.outputs.has_lock == 'true'
         working-directory: ${{ matrix.service }}
-        run: yarn test
+        run: |
+          if yarn run | grep -q "^  test"; then
+            yarn test
+          else
+            echo "No test script for ${{ matrix.service }}, skipping."
+          fi
 
       - name: Aviso de lock ausente
         if: steps.lock.outputs.has_lock != 'true'

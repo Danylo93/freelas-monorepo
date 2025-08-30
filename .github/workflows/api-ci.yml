@@ -34,7 +34,7 @@ jobs:
       - name: Build
         working-directory: api
         run: yarn build
-      - name: Test
+      - name: Teste
         working-directory: api
         run: yarn test --reporter=dot
 

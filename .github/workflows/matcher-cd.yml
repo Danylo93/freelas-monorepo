@@ -22,20 +22,26 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then ENV="${{ github.event.inputs.environment }}"; SHA="${{ github.sha }}"; else BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}"; case "$BR" in develop) ENV=dev;; hmg) ENV=hmg;; main|master) ENV=prd;; *) ENV=dev;; esac; fi
           ORG="${{ secrets.DOCKER_USERNAME }}"; if [ -z "$ORG" ]; then ORG="dan1993"; fi
           SHORT=$(echo "$SHA" | cut -c1-7)
+          REPO="${{ secrets.GITOPS_REPO }}"; [ -z "$REPO" ] && NO_GITOPS=true || NO_GITOPS=false
           echo "ENV=$ENV" >> $GITHUB_ENV
           echo "ORG=$ORG" >> $GITHUB_ENV
           echo "SHORT=$SHORT" >> $GITHUB_ENV
+          echo "GITOPS_REPO=$REPO" >> $GITHUB_ENV
+          echo "NO_GITOPS=$NO_GITOPS" >> $GITHUB_ENV
       - name: Checkout GitOps repo
         uses: actions/checkout@v4
+        if: env.NO_GITOPS != 'true'
         with:
-          repository: ${{ secrets.GITOPS_REPO }}
+          repository: ${{ env.GITOPS_REPO }}
           token: ${{ secrets.GITOPS_TOKEN }}
           path: gitops
       - name: Install kustomize
         uses: imranismail/setup-kustomize@v2
+        if: env.NO_GITOPS != 'true'
         with:
           kustomize-version: "5.3.0"
       - name: Update image and commit
+        if: env.NO_GITOPS != 'true'
         run: |
           cd gitops/k8s/overlays/${ENV}
           kustomize edit set image freelas-matcher=${ORG}/freelas-matcher:${ENV}-${SHORT}
@@ -44,4 +50,6 @@ jobs:
           git add .
           git commit -m "matcher:${ENV}-${SHORT}" || echo "No changes"
           git push
-
+      - name: Skip GitOps (not configured)
+        if: env.NO_GITOPS == 'true'
+        run: echo "::notice::GITOPS_REPO not set. Skipping Matcher GitOps update."

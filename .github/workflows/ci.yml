@@ -13,9 +13,9 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      api: ${{ steps.filter.outputs.api }}
-      matcher: ${{ steps.filter.outputs.matcher }}
-      web: ${{ steps.filter.outputs.web }}
+      api: ${{ steps.decide.outputs.api }}
+      matcher: ${{ steps.decide.outputs.matcher }}
+      web: ${{ steps.decide.outputs.web }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -30,6 +30,43 @@ jobs:
               - 'packages/shared/**'
             web:
               - 'web/**'
+            workflows:
+              - '.github/workflows/**'
+            k8s:
+              - 'k8s/**'
+            infra:
+              - 'infra/**'
+            root:
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'yarn.lock'
+              - 'tsconfig.base.json'
+              - '.env.example'
+              - '.npmrc'
+              - 'README.md'
+
+      - name: Decide which services run
+        id: decide
+        run: |
+          API=${{ steps.filter.outputs.api }}
+          MATCHER=${{ steps.filter.outputs.matcher }}
+          WEB=${{ steps.filter.outputs.web }}
+          ANY_INFRA=${{ steps.filter.outputs.workflows == 'true' || steps.filter.outputs.k8s == 'true' || steps.filter.outputs.infra == 'true' || steps.filter.outputs.root == 'true' }}
+          MSG=$(git log -1 --pretty=%B || echo '')
+          if echo "$MSG" | grep -qiE '\[ci (all|full)\]|ci:(all|full)'; then
+            ANY_INFRA=true
+          fi
+
+          # Fallbacks: em main/master sempre roda tudo se nada foi detectado; ou se infra/root mudou
+          if [ "$API" != 'true' ] && [ "$MATCHER" != 'true' ] && [ "$WEB" != 'true' ]; then
+            if [ "$ANY_INFRA" = 'true' ] || [[ "${{ github.ref_name }}" =~ ^(main|master|develop|hmg)$ ]]; then
+              API=true; MATCHER=true; WEB=true;
+            fi
+          fi
+
+          echo "api=$API" >> $GITHUB_OUTPUT
+          echo "matcher=$MATCHER" >> $GITHUB_OUTPUT
+          echo "web=$WEB" >> $GITHUB_OUTPUT
 
   api:
     needs: changes

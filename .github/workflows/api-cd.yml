@@ -17,52 +17,65 @@ concurrency:
   group: api-cd-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: true
 
+
 jobs:
   gitops:
-    # roda automático após o "API Release" com sucesso; ou manual pelo dispatch
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Resolver ENV/SHA e ORG
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BR="${{ github.ref_name }}"; ENV="${{ github.event.inputs.environment }}"; SHA="${{ github.sha }}"
-          else
-            BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}"
-            case "$BR" in
-              develop) ENV=dev ;; hmg) ENV=hmg ;; main|master) ENV=prd ;; *) ENV=dev ;;
-            esac
-          fi
+          BR="${{ github.event.workflow_run.head_branch }}"
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          case "$BR" in
+            develop) ENV=dev ;; hmg) ENV=hmg ;; main|master) ENV=prd ;; *) ENV=dev ;;
+          esac
           SHORT=$(echo "$SHA" | cut -c1-7)
           ORG="${{ secrets.DOCKER_USERNAME }}"; [ -z "$ORG" ] && ORG="dan1993"
           echo "ENV=$ENV" >> $GITHUB_ENV
           echo "SHORT=$SHORT" >> $GITHUB_ENV
           echo "ORG=$ORG" >> $GITHUB_ENV
 
-      - name: Preparar credenciais HTTP para Gitea (sem vazar nos logs)
+      - name: Normalizar e validar variáveis do Gitea
         env:
-          GITEA_URL: ${{ secrets.GITEA_URL }}
+          GITEA_URL:  ${{ secrets.GITEA_URL }}     # ex: gitea.seudominio.com:3000  (sem http://)
+          GITOPS_PATH: ${{ secrets.GITOPS_PATH }}  # ex: danylo/gitops.git
+        run: |
+          if [ -z "$GITEA_URL" ] || [ -z "$GITOPS_PATH" ]; then
+            echo "::error::Defina GITEA_URL (host[:port]) e GITOPS_PATH (owner/repo.git) em Secrets."
+            exit 1
+          fi
+          # remove http:// ou https:// se vierem no secret
+          CLEAN="${GITEA_URL#http://}"; CLEAN="${CLEAN#https://}"
+          HOST="${CLEAN%%/*}"                  # só o host[:port] para o .netrc
+          case "$GITOPS_PATH" in
+            *.git) : ;;                        # ok
+            *) echo "::error::GITOPS_PATH deve terminar com .git (ex: owner/repo.git)"; exit 1 ;;
+          esac
+          echo "CLEAN_URL=$CLEAN" >> $GITHUB_ENV
+          echo "HOST=$HOST" >> $GITHUB_ENV
+
+      - name: Preparar credenciais HTTP (.netrc)
+        env:
           GITEA_USER: ${{ secrets.GITEA_USER }}
           GITEA_PAT:  ${{ secrets.GITEA_PAT }}
         run: |
-          if [ -z "$GITEA_URL" ] || [ -z "$GITEA_USER" ] || [ -z "$GITEA_PAT" ]; then
-            echo "::error::Defina GITEA_URL, GITEA_USER e GITEA_PAT em Settings > Secrets"
+          if [ -z "$GITEA_USER" ] || [ -z "$GITEA_PAT" ]; then
+            echo "::error::Defina GITEA_USER e GITEA_PAT (token pessoal do Gitea com write)."
             exit 1
           fi
           cat <<EOF >> ~/.netrc
-          machine ${GITEA_URL}
+          machine ${HOST}
           login ${GITEA_USER}
           password ${GITEA_PAT}
           EOF
           chmod 600 ~/.netrc
 
-      - name: Clonar repo GitOps (ignorando TLS só para teste)
+      - name: Clonar GitOps (ignorando TLS só para teste)
         env:
-          GITEA_URL:  ${{ secrets.GITEA_URL }}
-          GITOPS_PATH: ${{ secrets.GITOPS_PATH }}   # ex: danylo/gitops.git
+          GITOPS_PATH: ${{ secrets.GITOPS_PATH }}
         run: |
           export GIT_SSL_NO_VERIFY=true
-          git -c http.sslVerify=false clone --depth 1 "https://${GITEA_URL}/${GITOPS_PATH}" gitops
+          git -c http.sslVerify=false clone --depth 1 "https://${CLEAN_URL}/${GITOPS_PATH}" gitops
           git -C gitops config user.email "action@github.com"
           git -C gitops config user.name "GitHub Action"
 
@@ -78,13 +91,12 @@ jobs:
             cat > gitops/k8s/overlays/${ENV}/kustomization.yaml <<'YAML'
             apiVersion: kustomize.config.k8s.io/v1beta1
             kind: Kustomization
-            # ajuste quando tiver a base
             # resources:
             #   - ../../base
             YAML
           fi
 
-      - name: Atualizar imagem e fazer push
+      - name: Atualizar imagem e push (ignorando TLS só para teste)
         run: |
           cd gitops/k8s/overlays/${ENV}
           kustomize edit set image freelas-api=${ORG}/freelas-api:${ENV}-${SHORT}

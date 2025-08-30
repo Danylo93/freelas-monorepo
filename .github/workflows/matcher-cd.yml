@@ -50,6 +50,11 @@ jobs:
           git add .
           git commit -m "matcher:${ENV}-${SHORT}" || echo "No changes"
           git push
+      - name: Summary
+        run: |
+          echo "Matcher CD" >> $GITHUB_STEP_SUMMARY
+          echo "Env: $ENV" >> $GITHUB_STEP_SUMMARY
+          echo "Image: $ORG/freelas-matcher:${ENV}-${SHORT}" >> $GITHUB_STEP_SUMMARY
       - name: Skip GitOps (not configured)
         if: env.NO_GITOPS == 'true'
         run: echo "::notice::GITOPS_REPO not set. Skipping Matcher GitOps update."

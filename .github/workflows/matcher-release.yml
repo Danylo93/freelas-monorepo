@@ -9,30 +9,41 @@ on:
       environment:
         description: "dev|hmg|prd"
         default: dev
+  workflow_call:
+    inputs:
+      environment:
+        required: false
+        type: string
+        default: dev
 
 jobs:
   release:
-    if: >-
-      ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: docker/setup-buildx-action@v3
+      - name: Print previous CI result (if any)
+        run: echo "Upstream CI conclusion: ${{ github.event.workflow_run.conclusion || 'n/a' }}"
       - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME || 'dan1993' }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Resolve env/tag
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then ENV="${{ github.event.inputs.environment }}"; SHA="${{ github.sha }}"; else BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}"; case "$BR" in develop) ENV=dev;; hmg) ENV=hmg;; main|master) ENV=prd;; *) ENV=dev;; esac; fi
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}";
+            case "$BR" in develop) ENV=dev;; hmg) ENV=hmg;; main|master) ENV=prd;; *) ENV=dev;; esac
+          else
+            ENV="${{ inputs.environment || github.event.inputs.environment || 'dev' }}"; SHA="${{ github.sha }}";
+          fi
           ORG="${{ secrets.DOCKER_USERNAME }}"; if [ -z "$ORG" ]; then ORG="dan1993"; fi
           echo "ENV=$ENV" >> $GITHUB_ENV
           echo "ORG=$ORG" >> $GITHUB_ENV
           echo "SHA=$SHA" >> $GITHUB_ENV
           echo "TAG_IMMUT=$ENV-$SHA" >> $GITHUB_ENV
+          echo "Releasing Matcher -> $ORG/freelas-matcher:$ENV and $ORG/freelas-matcher:$ENV-$SHA"
       - name: Build & Push Matcher
         uses: docker/build-push-action@v6
         with:
@@ -41,4 +52,10 @@ jobs:
           tags: |
             ${{ env.ORG }}/freelas-matcher:${{ env.ENV }}
             ${{ env.ORG }}/freelas-matcher:${{ env.TAG_IMMUT }}
-
+      - name: Summary
+        run: |
+          echo "Matcher Release" >> $GITHUB_STEP_SUMMARY
+          echo "Env: $ENV" >> $GITHUB_STEP_SUMMARY
+          echo "Tags:" >> $GITHUB_STEP_SUMMARY
+          echo "- $ORG/freelas-matcher:$ENV" >> $GITHUB_STEP_SUMMARY
+          echo "- $ORG/freelas-matcher:$TAG_IMMUT" >> $GITHUB_STEP_SUMMARY

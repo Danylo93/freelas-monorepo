@@ -1,0 +1,47 @@
+name: Web CD
+
+on:
+  workflow_run:
+    workflows: [Web Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "dev|hmg|prd"
+        default: dev
+
+jobs:
+  gitops:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve env/sha
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then ENV="${{ github.event.inputs.environment }}"; SHA="${{ github.sha }}"; else BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}"; case "$BR" in develop) ENV=dev;; hmg) ENV=hmg;; main|master) ENV=prd;; *) ENV=dev;; esac; fi
+          ORG="${{ secrets.DOCKER_USERNAME }}"; if [ -z "$ORG" ]; then ORG="dan1993"; fi
+          SHORT=$(echo "$SHA" | cut -c1-7)
+          echo "ENV=$ENV" >> $GITHUB_ENV
+          echo "ORG=$ORG" >> $GITHUB_ENV
+          echo "SHORT=$SHORT" >> $GITHUB_ENV
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "5.3.0"
+      - name: Update image and commit
+        run: |
+          cd gitops/k8s/overlays/${ENV}
+          kustomize edit set image freelas-web=${ORG}/freelas-web:${ENV}-${SHORT}
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add .
+          git commit -m "web:${ENV}-${SHORT}" || echo "No changes"
+          git push
+

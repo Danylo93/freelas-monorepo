@@ -83,7 +83,6 @@ jobs:
         working-directory: api
         run: |
           corepack enable
-          yarn set version classic
           yarn install --frozen-lockfile || yarn install
           yarn build
           yarn test || echo "no tests"
@@ -101,7 +100,6 @@ jobs:
         working-directory: matcher
         run: |
           corepack enable
-          yarn set version classic
           yarn install
           yarn build
           yarn test || echo "no tests"
@@ -121,6 +119,5 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:3001
         run: |
           corepack enable
-          yarn set version classic
           yarn install
           yarn build

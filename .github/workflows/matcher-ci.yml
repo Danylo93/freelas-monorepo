@@ -1,0 +1,40 @@
+name: Matcher CI
+
+on:
+  push:
+    paths:
+      - 'matcher/**'
+      - 'packages/shared/**'
+  pull_request:
+    paths:
+      - 'matcher/**'
+      - 'packages/shared/**'
+  workflow_dispatch: {}
+
+concurrency:
+  group: matcher-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: matcher/yarn.lock
+      - name: Install
+        working-directory: matcher
+        run: |
+          corepack enable
+          yarn --version
+          if [ -f yarn.lock ]; then yarn install --frozen-lockfile; else yarn install; fi
+      - name: Build
+        working-directory: matcher
+        run: yarn build
+      - name: Test
+        working-directory: matcher
+        run: yarn test --reporter=dot || echo "no tests"
+

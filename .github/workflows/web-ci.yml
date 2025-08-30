@@ -1,0 +1,39 @@
+name: Web CI
+
+on:
+  push:
+    paths:
+      - 'web/**'
+  pull_request:
+    paths:
+      - 'web/**'
+  workflow_dispatch: {}
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: web/yarn.lock
+      - name: Install
+        working-directory: web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+        run: |
+          corepack enable
+          yarn --version
+          if [ -f yarn.lock ]; then yarn install --frozen-lockfile; else yarn install; fi
+      - name: Build
+        working-directory: web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+        run: yarn build
+

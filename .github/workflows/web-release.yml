@@ -1,0 +1,47 @@
+name: Web Release
+
+on:
+  workflow_run:
+    workflows: [Web CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "dev|hmg|prd"
+        default: dev
+
+jobs:
+  release:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || 'dan1993' }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Resolve env/tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then ENV="${{ github.event.inputs.environment }}"; SHA="${{ github.sha }}"; else BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}"; case "$BR" in develop) ENV=dev;; hmg) ENV=hmg;; main|master) ENV=prd;; *) ENV=dev;; esac; fi
+          ORG="${{ secrets.DOCKER_USERNAME }}"; if [ -z "$ORG" ]; then ORG="dan1993"; fi
+          echo "ENV=$ENV" >> $GITHUB_ENV
+          echo "ORG=$ORG" >> $GITHUB_ENV
+          echo "SHA=$SHA" >> $GITHUB_ENV
+          echo "TAG_IMMUT=$ENV-$SHA" >> $GITHUB_ENV
+          echo "API_URL=http://api.$ENV.localtest.me" >> $GITHUB_ENV
+      - name: Build & Push Web
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          push: true
+          tags: |
+            ${{ env.ORG }}/freelas-web:${{ env.ENV }}
+            ${{ env.ORG }}/freelas-web:${{ env.TAG_IMMUT }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.API_URL }}
+

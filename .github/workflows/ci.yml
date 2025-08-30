@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [api, matcher, web]   # ajuste se quiser rodar só a api
+        service: [api]   # ajuste se quiser rodar só a api
     steps:
       - name: Checkout
         uses: actions/checkout@v4

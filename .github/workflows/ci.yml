@@ -2,43 +2,54 @@ name: CI
 
 on:
   push:
-    branches: [ main, master, develop, hmg ]
+    branches: [ main, master, develop, hmg, feature/** ]
   pull_request:
-    branches: [ main, master, develop, hmg ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  build_test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, matcher, web]   # ajuste se quiser rodar só a api
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'yarn'
-          cache-dependency-path: api/yarn.lock
-      - name: API build+test
-        working-directory: api
+          cache: yarn
+          cache-dependency-path: ${{ matrix.service }}/yarn.lock
+
+      # evita conflito se sobrou package-lock.json
+      - name: Remove npm lockfile (se existir)
         run: |
-          cd api
+          if [ -f package-lock.json ]; then rm -f package-lock.json; fi
+          if [ -f ${{ matrix.service }}/package-lock.json ]; then rm -f ${{ matrix.service }}/package-lock.json; fi
+
+      - name: Enable Corepack + Yarn classic
+        working-directory: ${{ matrix.service }}
+        run: |
           corepack enable
           yarn set version classic
-          yarn install --frozen-lockfile
-          yarn build
-          yarn test
-      - name: Matcher build+test
-        run: |
-          cd matcher
-          corepack enable
-          yarn set version classic
-          yarn install --frozen-lockfile
-          yarn build
-          yarn test
-      - name: Web build (typecheck)
+          echo '{"packageManager":"yarn@1.22.22"}' > .yarnrc || true
+
+      - name: Install deps
+        working-directory: ${{ matrix.service }}
+        run: yarn install --frozen-lockfile
+
+      # Se o web depende de variável pública na build
+      - name: Build
+        working-directory: ${{ matrix.service }}
         env:
-          NEXT_PUBLIC_API_URL: http://localhost:3001
-        run: |
-          cd web
-          corepack enable
-          yarn set version classic
-          yarn install --frozen-lockfile
-          yarn build
+          NEXT_PUBLIC_API_URL: http://api.dev.localtest.me
+        run: yarn build
+
+      - name: Test
+        working-directory: ${{ matrix.service }}
+        run: yarn test --if-present --run

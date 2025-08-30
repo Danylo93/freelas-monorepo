@@ -17,7 +17,6 @@ concurrency:
   group: api-cd-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: true
 
-
 jobs:
   gitops:
     runs-on: ubuntu-latest
@@ -31,28 +30,24 @@ jobs:
           esac
           SHORT=$(echo "$SHA" | cut -c1-7)
           ORG="${{ secrets.DOCKER_USERNAME }}"; [ -z "$ORG" ] && ORG="dan1993"
-          echo "ENV=$ENV" >> $GITHUB_ENV
+          echo "ENV=$ENV"   >> $GITHUB_ENV
           echo "SHORT=$SHORT" >> $GITHUB_ENV
-          echo "ORG=$ORG" >> $GITHUB_ENV
+          echo "ORG=$ORG"   >> $GITHUB_ENV
 
-      - name: Normalizar e validar variáveis do Gitea
+      - name: Normalizar host e forçar HTTP
         env:
           GITEA_URL:  ${{ secrets.GITEA_URL }}     # ex: gitea.seudominio.com:3000  (sem http://)
-          GITOPS_PATH: ${{ secrets.GITOPS_PATH }}  # ex: danylo/gitops.git
+          GITOPS_PATH: ${{ secrets.GITOPS_PATH }}  # ex: owner/gitops.git
         run: |
           if [ -z "$GITEA_URL" ] || [ -z "$GITOPS_PATH" ]; then
             echo "::error::Defina GITEA_URL (host[:port]) e GITOPS_PATH (owner/repo.git) em Secrets."
             exit 1
           fi
-          # remove http:// ou https:// se vierem no secret
           CLEAN="${GITEA_URL#http://}"; CLEAN="${CLEAN#https://}"
-          HOST="${CLEAN%%/*}"                  # só o host[:port] para o .netrc
-          case "$GITOPS_PATH" in
-            *.git) : ;;                        # ok
-            *) echo "::error::GITOPS_PATH deve terminar com .git (ex: owner/repo.git)"; exit 1 ;;
-          esac
-          echo "CLEAN_URL=$CLEAN" >> $GITHUB_ENV
-          echo "HOST=$HOST" >> $GITHUB_ENV
+          HOST="${CLEAN%%/*}"
+          echo "CLEAN_URL=$CLEAN"   >> $GITHUB_ENV
+          echo "HOST=$HOST"         >> $GITHUB_ENV
+          echo "SCHEME=http"         >> $GITHUB_ENV   # << força HTTP
 
       - name: Preparar credenciais HTTP (.netrc)
         env:
@@ -60,7 +55,7 @@ jobs:
           GITEA_PAT:  ${{ secrets.GITEA_PAT }}
         run: |
           if [ -z "$GITEA_USER" ] || [ -z "$GITEA_PAT" ]; then
-            echo "::error::Defina GITEA_USER e GITEA_PAT (token pessoal do Gitea com write)."
+            echo "::error::Defina GITEA_USER e GITEA_PAT (token do Gitea com write)."
             exit 1
           fi
           cat <<EOF >> ~/.netrc
@@ -70,12 +65,11 @@ jobs:
           EOF
           chmod 600 ~/.netrc
 
-      - name: Clonar GitOps (ignorando TLS só para teste)
+      - name: Clonar GitOps via HTTP
         env:
           GITOPS_PATH: ${{ secrets.GITOPS_PATH }}
         run: |
-          export GIT_SSL_NO_VERIFY=true
-          git -c http.sslVerify=false clone --depth 1 "https://${CLEAN_URL}/${GITOPS_PATH}" gitops
+          git clone --depth 1 "${SCHEME}://${CLEAN_URL}/${GITOPS_PATH}" gitops
           git -C gitops config user.email "action@github.com"
           git -C gitops config user.name "GitHub Action"
 
@@ -84,23 +78,15 @@ jobs:
         with:
           kustomize-version: "5.3.0"
 
-      - name: Garantir overlay e kustomization (primeiro uso)
+      - name: Atualizar imagem e push
         run: |
           mkdir -p gitops/k8s/overlays/${ENV}
-          if [ ! -f "gitops/k8s/overlays/${ENV}/kustomization.yaml" ]; then
-            cat > gitops/k8s/overlays/${ENV}/kustomization.yaml <<'YAML'
-            apiVersion: kustomize.config.k8s.io/v1beta1
-            kind: Kustomization
-            # resources:
-            #   - ../../base
-            YAML
-          fi
-
-      - name: Atualizar imagem e push (ignorando TLS só para teste)
-        run: |
           cd gitops/k8s/overlays/${ENV}
+          [ -f kustomization.yaml ] || cat > kustomization.yaml <<'YAML'
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          YAML
           kustomize edit set image freelas-api=${ORG}/freelas-api:${ENV}-${SHORT}
           git add .
           git commit -m "api:${ENV}-${SHORT}" || echo "No changes"
-          export GIT_SSL_NO_VERIFY=true
-          git -c http.sslVerify=false push
+          git push

@@ -5,51 +5,62 @@ on:
     branches: [ main, master, develop, hmg, feature/** ]
   pull_request:
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build_test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false                # << não cancela os outros
       matrix:
-        service: [api]   # ajuste se quiser rodar só a api
+        service: [api, matcher, web]
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Detect yarn.lock
+        id: lock
+        run: |
+          if [ -f "${{ matrix.service }}/yarn.lock" ]; then
+            echo "has_lock=true" >> $GITHUB_OUTPUT
+            echo "path=${{ matrix.service }}/yarn.lock" >> $GITHUB_OUTPUT
+          else
+            echo "has_lock=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node (with cache when lock exists)
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: yarn
-          cache-dependency-path: ${{ matrix.service }}/yarn.lock
+          cache: ${{ steps.lock.outputs.has_lock == 'true' && 'yarn' || '' }}
+          cache-dependency-path: ${{ steps.lock.outputs.path }}
 
-      # evita conflito se sobrou package-lock.json
       - name: Remove npm lockfile (se existir)
         run: |
-          if [ -f package-lock.json ]; then rm -f package-lock.json; fi
-          if [ -f ${{ matrix.service }}/package-lock.json ]; then rm -f ${{ matrix.service }}/package-lock.json; fi
+          rm -f package-lock.json ${{ matrix.service }}/package-lock.json || true
 
       - name: Enable Corepack + Yarn classic
         working-directory: ${{ matrix.service }}
         run: |
           corepack enable
           yarn set version classic
-          echo '{"packageManager":"yarn@1.22.22"}' > .yarnrc || true
+          printf '%s\n' 'yarnPath: .yarn/releases/yarn-1.22.22.cjs' > .yarnrc 2>/dev/null || true
 
-      - name: Install deps
+      # Se não houver yarn.lock, pulamos o serviço por enquanto
+      - name: Instalar deps
+        if: steps.lock.outputs.has_lock == 'true'
         working-directory: ${{ matrix.service }}
         run: yarn install --frozen-lockfile
 
-      # Se o web depende de variável pública na build
       - name: Build
+        if: steps.lock.outputs.has_lock == 'true'
         working-directory: ${{ matrix.service }}
-        env:
-          NEXT_PUBLIC_API_URL: http://api.dev.localtest.me
         run: yarn build
 
       - name: Test
         working-directory: ${{ matrix.service }}
-        run: yarn test --if-present --run
+        run: yarn test
+
+      - name: Aviso de lock ausente
+        if: steps.lock.outputs.has_lock != 'true'
+        run: |
+          echo "::warning::${{ matrix.service }} pulado: adicione e versione ${{ matrix.service }}/yarn.lock"

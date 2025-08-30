@@ -1,0 +1,23 @@
+version: "3.9"
+services:
+  api:
+    image: node:20
+    working_dir: /app
+    command: sh -lc "corepack enable && yarn set version classic && yarn install && yarn dev"
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - API_PORT=3001
+      - KAFKA_BROKERS=redpanda:9092
+      - REDIS_URL=redis://redis:6379
+      - USE_REAL_KAFKA=true
+      - USE_REAL_REDIS=true
+    ports: ["3001:3001"]
+    volumes:
+      - ./:/app
+    networks:
+      - freelas_net
+
+networks:
+  freelas_net:
+    external: true

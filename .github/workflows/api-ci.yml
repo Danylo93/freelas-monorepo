@@ -2,13 +2,8 @@ name: API CI
 
 on:
   push:
-    paths:
-      - 'api/**'
-      - 'packages/shared/**'
+    branches: [ main, master, develop, hmg, feature/**, hotfix/**, bugfix/** ]
   pull_request:
-    paths:
-      - 'api/**'
-      - 'packages/shared/**'
   workflow_dispatch: {}
 
 concurrency:
@@ -37,4 +32,3 @@ jobs:
       - name: Teste
         working-directory: api
         run: yarn test --reporter=dot
-

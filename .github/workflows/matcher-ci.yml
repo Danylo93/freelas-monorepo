@@ -2,13 +2,8 @@ name: Matcher CI
 
 on:
   push:
-    paths:
-      - 'matcher/**'
-      - 'packages/shared/**'
+    branches: [ main, master, develop, hmg, feature/**, hotfix/**, bugfix/** ]
   pull_request:
-    paths:
-      - 'matcher/**'
-      - 'packages/shared/**'
   workflow_dispatch: {}
 
 concurrency:
@@ -37,4 +32,3 @@ jobs:
       - name: Test
         working-directory: matcher
         run: yarn test --reporter=dot || echo "no tests"
-

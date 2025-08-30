@@ -2,11 +2,8 @@ name: Web CI
 
 on:
   push:
-    paths:
-      - 'web/**'
+    branches: [ main, master, develop, hmg, feature/**, hotfix/**, bugfix/** ]
   pull_request:
-    paths:
-      - 'web/**'
   workflow_dispatch: {}
 
 concurrency:
@@ -36,4 +33,3 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3001
         run: yarn build
-

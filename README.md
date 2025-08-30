@@ -167,3 +167,64 @@ Secrets necessários no repositório:
 Notas do deploy:
 - O pipeline ajusta as imagens no overlay do repositório GitOps e faz push — o ArgoCD detecta e sincroniza.
 - Ao buildar Web, é passada `NEXT_PUBLIC_API_URL=http://api.<env>.localtest.me`.
+
+
+
+---------------------
+
+
+Perfeito — segue um guia direto de como obter e configurar cada variável usada nos releases/deploys. Onde não configurar, o passo de deploy é pulado e a imagem é publicada normalmente no Docker Hub.
+
+Onde adicionar
+
+GitHub → Settings → Secrets and variables → Actions → New repository secret
+Adicione as chaves exatamente como abaixo.
+Obrigatórias (publicar no Docker Hub)
+
+DOCKER_USERNAME: seu usuário do Docker Hub (ex.: dan1993).
+DOCKER_PASSWORD: use um Access Token do Docker Hub.
+Docker Hub → Account Settings → Security → New Access Token.
+Evite senha da conta (2FA quebra login por senha).
+Opcionais (fazer deploy direto via kubectl)
+Observação importante: o deploy direto só funciona se o runner do GitHub conseguir alcançar o endpoint do seu cluster (AKS/EKS/GKE ou um runner self‑hosted dentro da sua rede). Se o cluster for local (Docker Desktop/WSL/kind/minikube), um runner hospedado pelo GitHub NÃO alcança — nesse caso, não configure kubeconfig e o pipeline vai “Skip deploy (no kubeconfig)”. Alternativas: self‑hosted runner ou GitOps (ArgoCD) mais tarde.
+
+KUBECONFIG_B64_DEV, KUBECONFIG_B64_HMG, KUBECONFIG_B64_PRD (ou KUBECONFIG_B64 genérico)
+Conteúdo: o kubeconfig do cluster codificado em base64 (uma linha).
+Como gerar o base64 do kubeconfig
+
+Docker Desktop (Windows):
+Caminho típico: C:\Users\SEU_USUARIO.kube\config
+PowerShell:
+$bytes = [IO.File]::ReadAllBytes("$HOME.kube\config")
+[Convert]::ToBase64String($bytes)
+Copie a string e cole no secret (ex.: KUBECONFIG_B64_DEV).
+Linux/WSL/macOS:
+bash/sh:
+base64 -w0 ~/.kube/config
+ou no macOS (sem -w):
+base64 ~/.kube/config | tr -d '\n'
+AKS:
+az login
+az aks get-credentials -g <resource-group> -n <cluster>
+Gere o base64 do ~/.kube/config e crie o secret.
+EKS:
+aws eks update-kubeconfig --region <reg> --name <cluster>
+Gere o base64 do ~/.kube/config e crie o secret.
+GKE:
+gcloud auth login
+gcloud container clusters get-credentials <cluster> --zone <zona> --project <proj>
+Gere o base64 do ~/.kube/config e crie o secret.
+Como o ambiente é escolhido
+
+Quando o release dispara automaticamente após o CI: o ambiente vem do branch
+develop → dev
+hmg → hmg
+main/master → prd
+Quando você dispara manualmente: escolhe o environment (dev/hmg/prd) no formulário.
+As tags publicadas no Docker Hub:
+dan1993/freelas-<service>:<env> e :<env>-<sha> (imutável)
+O Web recebe NEXT_PUBLIC_API_URL automaticamente como http://api.<env>.localtest.me no build.
+Validação rápida
+
+Sem kubeconfig: releases vão publicar imagens e mostrar no Step Summary “Deploy: skipped (no kubeconfig)”.
+Com kubeconfig válido (e cluster acessível do runner): após publicar, aplicam k8s/overlays/<env> com a imagem <env>-<sha> e mostram “Deploy: applied via kustomize”.

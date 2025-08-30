@@ -53,6 +53,43 @@ jobs:
           tags: |
             ${{ env.ORG }}/freelas-api:${{ env.ENV }}
             ${{ env.ORG }}/freelas-api:${{ env.TAG_IMMUT }}
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.0
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "5.3.0"
+      - name: Prepare kubeconfig (optional)
+        id: kube
+        env:
+          KUBECONFIG_B64_DEV: ${{ secrets.KUBECONFIG_B64_DEV }}
+          KUBECONFIG_B64_HMG: ${{ secrets.KUBECONFIG_B64_HMG }}
+          KUBECONFIG_B64_PRD: ${{ secrets.KUBECONFIG_B64_PRD }}
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+        run: |
+          KC=""
+          case "$ENV" in
+            dev) KC="$KUBECONFIG_B64_DEV" ;;
+            hmg) KC="$KUBECONFIG_B64_HMG" ;;
+            prd) KC="$KUBECONFIG_B64_PRD" ;;
+          esac
+          if [ -z "$KC" ]; then KC="$KUBECONFIG_B64"; fi
+          if [ -z "$KC" ]; then
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "::notice::No kubeconfig secret found. Skipping deploy."
+            exit 0
+          fi
+          echo "$KC" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+          echo "configured=true" >> $GITHUB_OUTPUT
+      - name: Deploy API (optional)
+        if: steps.kube.outputs.configured == 'true'
+        run: |
+          cd k8s/overlays/${ENV}
+          kustomize edit set image freelas-api=${ORG}/freelas-api:${TAG_IMMUT}
+          kustomize build . | kubectl apply -f -
       - name: Summary
         run: |
           echo "API Release" >> $GITHUB_STEP_SUMMARY
@@ -60,3 +97,4 @@ jobs:
           echo "Tags:" >> $GITHUB_STEP_SUMMARY
           echo "- $ORG/freelas-api:$ENV" >> $GITHUB_STEP_SUMMARY
           echo "- $ORG/freelas-api:$TAG_IMMUT" >> $GITHUB_STEP_SUMMARY
+          echo "Deploy: ${{ steps.kube.outputs.configured == 'true' && 'applied via kustomize' || 'skipped (no kubeconfig)' }}" >> $GITHUB_STEP_SUMMARY

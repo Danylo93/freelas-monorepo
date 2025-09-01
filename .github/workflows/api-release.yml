@@ -24,6 +24,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
       - uses: docker/setup-buildx-action@v3
       - name: Print previous Security result (if any)
         run: |
@@ -32,7 +35,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME || 'dan1993' }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Resolve env/tag
+      - name: Resolve env/tag/version
         run: |
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}";
@@ -41,9 +44,13 @@ jobs:
             ENV="${{ inputs.environment || github.event.inputs.environment || 'dev' }}"; SHA="${{ github.sha }}";
           fi
           ORG="${{ secrets.DOCKER_USERNAME }}"; if [ -z "$ORG" ]; then ORG="dan1993"; fi
+          SHORT=$(echo "$SHA" | cut -c1-7)
+          VERSION=$(node -p "require('./api/package.json').version")
           echo "ENV=$ENV" >> $GITHUB_ENV
           echo "ORG=$ORG" >> $GITHUB_ENV
           echo "SHA=$SHA" >> $GITHUB_ENV
+          echo "SHORT=$SHORT" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "TAG_IMMUT=$ENV-$SHA" >> $GITHUB_ENV
           echo "Releasing API -> $ORG/freelas-api:$ENV and $ORG/freelas-api:$ENV-$SHA"
       - name: Build & Push API
@@ -54,11 +61,27 @@ jobs:
           tags: |
             ${{ env.ORG }}/freelas-api:${{ env.ENV }}
             ${{ env.ORG }}/freelas-api:${{ env.TAG_IMMUT }}
+      - name: Create GitHub Release (API)
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: api-v${{ env.VERSION }}-${{ env.ENV }}-${{ env.SHORT }}
+          name: API v${{ env.VERSION }} (${{ env.ENV }})
+          body: |
+            API Release
+            - Version: v${{ env.VERSION }}
+            - Env: ${{ env.ENV }}
+            - Docker tags:
+              - ${{ env.ORG }}/freelas-api:${{ env.ENV }}
+              - ${{ env.ORG }}/freelas-api:${{ env.TAG_IMMUT }}
       - name: Summary
         run: |
           echo "API Release" >> $GITHUB_STEP_SUMMARY
+          echo "Version: v$VERSION" >> $GITHUB_STEP_SUMMARY
           echo "Env: $ENV" >> $GITHUB_STEP_SUMMARY
           echo "Tags:" >> $GITHUB_STEP_SUMMARY
           echo "- $ORG/freelas-api:$ENV" >> $GITHUB_STEP_SUMMARY
           echo "- $ORG/freelas-api:$TAG_IMMUT" >> $GITHUB_STEP_SUMMARY
+          echo "GitHub Release tag: api-v$VERSION-$ENV-$SHORT" >> $GITHUB_STEP_SUMMARY
           echo "Deploy: handled by API CD (if configured)" >> $GITHUB_STEP_SUMMARY

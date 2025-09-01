@@ -1,0 +1,80 @@
+name: Web CD
+
+on:
+  workflow_run:
+    workflows: [Web Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "dev|hmg|prd"
+        default: dev
+
+concurrency:
+  group: web-cd-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve env/sha/org
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}";
+            case "$BR" in develop) ENV=dev ;; hmg) ENV=hmg ;; main|master) ENV=prd ;; *) ENV=dev ;; esac
+          else
+            ENV="${{ github.event.inputs.environment || 'dev' }}"; SHA="${{ github.sha }}";
+          fi
+          ORG="${{ secrets.DOCKER_USERNAME }}"; [ -z "$ORG" ] && ORG="dan1993"
+          echo "ENV=$ENV" >> $GITHUB_ENV
+          echo "TAG_IMMUT=$ENV-$SHA" >> $GITHUB_ENV
+          echo "ORG=$ORG" >> $GITHUB_ENV
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.0
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "5.3.0"
+
+      - name: Prepare kubeconfig (optional)
+        id: kube
+        env:
+          KUBECONFIG_B64_DEV: ${{ secrets.KUBECONFIG_B64_DEV }}
+          KUBECONFIG_B64_HMG: ${{ secrets.KUBECONFIG_B64_HMG }}
+          KUBECONFIG_B64_PRD: ${{ secrets.KUBECONFIG_B64_PRD }}
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+        run: |
+          KC=""
+          case "$ENV" in
+            dev) KC="$KUBECONFIG_B64_DEV" ;;
+            hmg) KC="$KUBECONFIG_B64_HMG" ;;
+            prd) KC="$KUBECONFIG_B64_PRD" ;;
+          esac
+          if [ -z "$KC" ]; then KC="$KUBECONFIG_B64"; fi
+          if [ -z "$KC" ]; then
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "::notice::No kubeconfig provided. Skipping CD."
+            exit 0
+          fi
+          echo "$KC" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+          echo "configured=true" >> $GITHUB_OUTPUT
+
+      - name: Apply manifests
+        if: steps.kube.outputs.configured == 'true'
+        run: |
+          cd k8s/overlays/${ENV}
+          kustomize edit set image freelas-web=${ORG}/freelas-web:${TAG_IMMUT}
+          kustomize build . | kubectl apply -f -
+
+      - name: Summary
+        run: |
+          echo "Web CD" >> $GITHUB_STEP_SUMMARY
+          echo "Env: $ENV" >> $GITHUB_STEP_SUMMARY
+          echo "Image: $ORG/freelas-web:${TAG_IMMUT}" >> $GITHUB_STEP_SUMMARY
+          echo "Status: ${{ steps.kube.outputs.configured == 'true' && 'applied' || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+

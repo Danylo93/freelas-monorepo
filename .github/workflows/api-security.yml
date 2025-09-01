@@ -1,0 +1,59 @@
+name: API Security
+
+on:
+  workflow_run:
+    workflows: [API CI]
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: api-security-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (same SHA of CI when applicable)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: api/yarn.lock
+
+      - name: Install deps
+        working-directory: api
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile || yarn install
+
+      - name: Yarn Audit (high and critical)
+        working-directory: api
+        run: |
+          yarn audit --level high
+
+      - name: Trivy FS scan (CRITICAL,HIGH)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: fs
+          scan-ref: api
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          format: sarif
+          output: trivy-api.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-api.sarif
+

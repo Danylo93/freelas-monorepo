@@ -2,7 +2,7 @@ name: Matcher Release
 
 on:
   workflow_run:
-    workflows: [Matcher CI]
+    workflows: [Matcher Security]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -18,14 +18,15 @@ on:
 
 jobs:
   release:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: docker/setup-buildx-action@v3
-      - name: Print previous CI result (if any)
-        run: echo "Upstream CI conclusion: ${{ github.event.workflow_run.conclusion || 'n/a' }}"
+      - name: Print previous Security result (if any)
+        run: echo "Security conclusion: ${{ github.event.workflow_run.conclusion || 'n/a' }}"
       - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME || 'dan1993' }}
@@ -52,43 +53,6 @@ jobs:
           tags: |
             ${{ env.ORG }}/freelas-matcher:${{ env.ENV }}
             ${{ env.ORG }}/freelas-matcher:${{ env.TAG_IMMUT }}
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.29.0
-      - name: Install kustomize
-        uses: imranismail/setup-kustomize@v2
-        with:
-          kustomize-version: "5.3.0"
-      - name: Prepare kubeconfig (optional)
-        id: kube
-        env:
-          KUBECONFIG_B64_DEV: ${{ secrets.KUBECONFIG_B64_DEV }}
-          KUBECONFIG_B64_HMG: ${{ secrets.KUBECONFIG_B64_HMG }}
-          KUBECONFIG_B64_PRD: ${{ secrets.KUBECONFIG_B64_PRD }}
-          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
-        run: |
-          KC=""
-          case "$ENV" in
-            dev) KC="$KUBECONFIG_B64_DEV" ;;
-            hmg) KC="$KUBECONFIG_B64_HMG" ;;
-            prd) KC="$KUBECONFIG_B64_PRD" ;;
-          esac
-          if [ -z "$KC" ]; then KC="$KUBECONFIG_B64"; fi
-          if [ -z "$KC" ]; then
-            echo "configured=false" >> $GITHUB_OUTPUT
-            echo "::notice::No kubeconfig secret found. Skipping deploy."
-            exit 0
-          fi
-          echo "$KC" | base64 -d > kubeconfig
-          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
-          echo "configured=true" >> $GITHUB_OUTPUT
-      - name: Deploy Matcher (optional)
-        if: steps.kube.outputs.configured == 'true'
-        run: |
-          cd k8s/overlays/${ENV}
-          kustomize edit set image freelas-matcher=${ORG}/freelas-matcher:${TAG_IMMUT}
-          kustomize build . | kubectl apply -f -
       - name: Summary
         run: |
           echo "Matcher Release" >> $GITHUB_STEP_SUMMARY
@@ -96,4 +60,4 @@ jobs:
           echo "Tags:" >> $GITHUB_STEP_SUMMARY
           echo "- $ORG/freelas-matcher:$ENV" >> $GITHUB_STEP_SUMMARY
           echo "- $ORG/freelas-matcher:$TAG_IMMUT" >> $GITHUB_STEP_SUMMARY
-          echo "Deploy: ${{ steps.kube.outputs.configured == 'true' && 'applied via kustomize' || 'skipped (no kubeconfig)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "Deploy: handled by Matcher CD (if configured)" >> $GITHUB_STEP_SUMMARY

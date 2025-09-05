@@ -5,13 +5,12 @@ services:
     working_dir: /app
     command: sh -lc "corepack enable && yarn set version classic && yarn install && yarn dev"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - HOST=0.0.0.0
       - API_PORT=3001
-      - KAFKA_BROKERS=redpanda.freelas.svc.cluster.local:9092
-      - USE_REAL_KAFKA=true
-
+      
       - REDIS_URL=redis://redis:6379
+      - USE_REAL_KAFKA=false
       - USE_REAL_REDIS=true
     ports: ["3001:3001"]
     volumes:

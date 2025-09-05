@@ -13,6 +13,18 @@ spec:
       labels:
         app: api
     spec:
+      initContainers:
+        - name: wait-redpanda
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - >-
+              echo "waiting for redpanda readiness...";
+              until wget -qO- http://redpanda:9644/v1/status/ready >/dev/null 2>&1; do
+                echo "redpanda not ready yet";
+                sleep 2;
+              done;
+              echo "redpanda is ready";
       containers:
         - name: api
           image: freelas-api

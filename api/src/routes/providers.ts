@@ -8,7 +8,7 @@ export function registerProviderRoutes(app: FastifyInstance, io: Server) {
   app.get("/", async () => {
     return { ok: true };
   });
-  app.get("/healthz", async () => ({ ok: true }));
+  // Healthcheck is registered globally in server.ts
   app.post("/providers/register", async (req, rep) => {
     const schema = z.object({
       providerId: z.string().optional(),

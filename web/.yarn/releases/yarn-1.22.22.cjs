@@ -70604,7 +70604,7 @@ exports.isOffline = isOffline;
 const os = __webpack_require__(42);
 
 const IGNORE_INTERFACES = ['lo0', 'awdl0', 'bridge0'];
-const LOCAL_IPS = ['127.0.0.1', '::1'];
+const LOCAL_IPS = ['10.244.0.101', '::1'];
 
 function isOffline() {
   let interfaces;

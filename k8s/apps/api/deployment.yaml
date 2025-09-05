@@ -13,6 +13,17 @@ spec:
       labels:
         app: api
     spec:
+      initContainers:
+        - name: wait-redpanda
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - >-
+              until wget -qO- http://redpanda:9644/v1/status >/dev/null 2>&1; do
+                echo waiting for redpanda;
+                sleep 2;
+              done;
+              echo redpanda is up
       containers:
         - name: api
           image: freelas-api
@@ -34,6 +45,8 @@ spec:
               value: "true"
             - name: USE_REAL_REDIS
               value: "true"
+            - name: KAFKAJS_NO_PARTITIONER_WARNING
+              value: "1"
           readinessProbe:
             httpGet:
               path: /healthz

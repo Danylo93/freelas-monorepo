@@ -10,6 +10,9 @@ import { registerRequestRoutes } from "./routes/requests.js";
 
 export async function startServer() {
   const app = Fastify({ logger: true });
+  // Health endpoints first, so probes pass even se algo falhar depois
+  app.get('/healthz', async () => ({ ok: true }));
+  app.get('/livez', async () => ({ ok: true }));
   await app.register(cors, { origin: true });
   await app.register(rateLimit, { max: 200, timeWindow: '1 minute' });
   const { io } = setupWebsocket(app);

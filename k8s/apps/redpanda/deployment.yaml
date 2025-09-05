@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  namespace: freelas
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: redpandadata/redpanda:v24.1.14
+          command: ["/usr/bin/rpk"]
+          args:
+            - redpanda
+            - start
+            - --mode
+            - dev-container
+            - --overprovisioned
+            - --smp
+            - "1"
+            - --memory
+            - "512M"
+            - --reserve-memory
+            - "0M"
+            - --node-id
+            - "0"
+            - --check=false
+            - --kafka-addr
+            - "0.0.0.0:9092"
+            - --advertise-kafka-addr
+            - "redpanda:9092"
+          ports:
+            - containerPort: 9092
+            - containerPort: 9644
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+          readinessProbe:
+            httpGet:
+              path: /v1/status
+              port: 9644
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /v1/status
+              port: 9644
+            initialDelaySeconds: 10
+            periodSeconds: 10
+

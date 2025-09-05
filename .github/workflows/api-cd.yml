@@ -47,8 +47,8 @@ jobs:
         id: kube
         env:
           # Preferred: repository/organization Secrets
-          # KUBECONFIG_B64_DEV: ${{ secrets.KUBECONFIG_B64_DEV }}
-          # KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+          KUBECONFIG_B64_DEV: ${{ secrets.KUBECONFIG_B64_DEV }}
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
           # Optional inline (Repository Variables) if you want to "colocar direto"
           INLINE_KUBECONFIG_B64: ${{ vars.KUBECONFIG_B64_DEV }}
           INLINE_KUBECONFIG_RAW: ${{ vars.KUBECONFIG_DEV_RAW }}
@@ -57,15 +57,23 @@ jobs:
           KC="${KUBECONFIG_B64_DEV:-}"
           [ -z "$KC" ] && KC="${KUBECONFIG_B64:-}"
           if [ -n "$KC" ]; then
-            echo "$KC" | base64 -d > kubeconfig
+            # Try to decode as base64; ignore garbage; if decode fails, treat as raw YAML
+            if ! echo "$KC" | base64 --decode --ignore-garbage > kubeconfig 2>/dev/null; then
+              printf "%s" "$KC" > kubeconfig
+            fi
           elif [ -n "${INLINE_KUBECONFIG_B64:-}" ]; then
-            echo "$INLINE_KUBECONFIG_B64" | base64 -d > kubeconfig
+            if ! echo "$INLINE_KUBECONFIG_B64" | base64 --decode --ignore-garbage > kubeconfig 2>/dev/null; then
+              printf "%s" "$INLINE_KUBECONFIG_B64" > kubeconfig
+            fi
           elif [ -n "${INLINE_KUBECONFIG_RAW:-}" ]; then
             printf "%s" "$INLINE_KUBECONFIG_RAW" > kubeconfig
           else
             echo "configured=false" >> $GITHUB_OUTPUT
             echo "::notice::No kubeconfig provided via secrets or vars. Skipping CD."
             exit 0
+          fi
+          if ! grep -q "clusters:" kubeconfig; then
+            echo "::warning::kubeconfig may be invalid (no 'clusters:' key)."
           fi
           echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
           echo "configured=true" >> $GITHUB_OUTPUT

@@ -12,12 +12,11 @@ export async function startServer() {
   const app = Fastify({ logger: true });
   await app.register(cors, { origin: true });
   await app.register(rateLimit, { max: 200, timeWindow: '1 minute' });
-  const { io, httpServer } = setupWebsocket(app);
+  const { io } = setupWebsocket(app);
   await initKafka();
   await registerKafkaConsumers(io);
   registerProviderRoutes(app, io);
   registerRequestRoutes(app, io);
-  httpServer.listen(config.port, config.host, () => {
-    console.log(`API on ${config.host}:${config.port}`);
-  });
+  await app.listen({ port: config.port, host: config.host });
+  console.log(`API on ${config.host}:${config.port}`);
 }

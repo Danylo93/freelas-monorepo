@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  namespace: freelas
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: redpandadata/redpanda:v24.1.14
+          args:
+            - bash
+            - -c
+            - >-
+              redpanda start --mode dev-container --overprovisioned --smp 1 --memory 1G
+              --reserve-memory 0M --node-id 0 --check=false
+              --kafka-addr 0.0.0.0:9092
+              --advertise-kafka-addr redpanda:9092
+          ports:
+            - containerPort: 9092
+            - containerPort: 9644
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  namespace: freelas
+spec:
+  type: ClusterIP
+  selector:
+    app: redpanda
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+    - name: admin
+      port: 9644
+      targetPort: 9644
+

@@ -1,9 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - ../infra      # namespace, redis, redpanda
   - ../apps       # agrega todos os apps comuns
-patches:
-  - path: ingress.yaml
-    target:
-      kind: Ingress
+  - ingress.yaml  # cria o Ingress para dev
 # (opcional) nameSuffix: -dev, images:, configMapGenerator:, etc.

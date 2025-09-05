@@ -5,7 +5,7 @@ services:
     working_dir: /app
     command: sh -lc "corepack enable && yarn set version classic && yarn install && yarn dev"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - KAFKA_BROKERS=redpanda:9092
       - REDIS_URL=redis://redis:6379
       - USE_REAL_KAFKA=true

@@ -8,10 +8,10 @@ resources:
 images:
   - name: freelas-api
     newName: dan1993/freelas-api
-    newTag: dev
+    newTag: prd
   - name: freelas-matcher
     newName: dan1993/freelas-matcher
-    newTag: dev
+    newTag: prd
   - name: freelas-web
     newName: dan1993/freelas-web
-    newTag: dev
+    newTag: prd

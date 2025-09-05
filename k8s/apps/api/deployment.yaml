@@ -27,11 +27,11 @@ spec:
             - name: API_PORT
               value: "3001"
             - name: KAFKA_BROKERS
-              value: redpanda:9092
+              value: redpanda.freelas.svc.cluster.local:9092
             - name: REDIS_URL
               value: redis://redis:6379
             - name: USE_REAL_KAFKA
-              value: "false"
+              value: "true"
             - name: USE_REAL_REDIS
               value: "true"
             - name: KAFKAJS_NO_PARTITIONER_WARNING

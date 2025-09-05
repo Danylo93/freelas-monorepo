@@ -8,11 +8,11 @@ resources:
   - hpa-matcher.yaml
 images:
   - name: freelas-api
-    newName: freelas-api:prd-73cb936baf70531dbc805ff34924c9d06d4ceadf
-    newTag: freelas-api:prd-73cb936baf70531dbc805ff34924c9d06d4ceadf
+    newName: dan1993/freelas-api
+    newTag: prd
   - name: freelas-matcher
-    newName: freelas-matcher
+    newName: dan1993/freelas-matcher
     newTag: prd
   - name: freelas-web
-    newName: freelas-web
+    newName: dan1993/freelas-web
     newTag: prd

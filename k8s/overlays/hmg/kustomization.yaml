@@ -8,11 +8,11 @@ resources:
   - hpa-matcher.yaml
 images:
   - name: freelas-api
-    newName: freelas-api
+    newName: dan1993/freelas-api
     newTag: hmg
   - name: freelas-matcher
-    newName: freelas-matcher
+    newName: dan1993/freelas-matcher
     newTag: hmg
   - name: freelas-web
-    newName: freelas-web
+    newName: dan1993/freelas-web
     newTag: hmg

@@ -5,3 +5,13 @@ resources:
   - ../apps       # agrega todos os apps comuns
   - ingress.yaml  # cria o Ingress para dev
 # (opcional) nameSuffix: -dev, images:, configMapGenerator:, etc.
+images:
+  - name: freelas-api
+    newName: dan1993/freelas-api
+    newTag: dev
+  - name: freelas-matcher
+    newName: dan1993/freelas-matcher
+    newTag: dev
+  - name: freelas-web
+    newName: dan1993/freelas-web
+    newTag: dev

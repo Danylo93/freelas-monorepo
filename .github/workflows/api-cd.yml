@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "dev|hmg|prd"
+        description: "environment to deploy (kept dev)"
         default: dev
 
 concurrency:
@@ -20,12 +20,9 @@ jobs:
     steps:
       - name: Resolve env/sha/org
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}";
-            case "$BR" in develop) ENV=dev ;; hmg) ENV=hmg ;; main|master) ENV=prd ;; *) ENV=dev ;; esac
-          else
-            ENV="${{ github.event.inputs.environment || 'dev' }}"; SHA="${{ github.sha }}";
-          fi
+          # Force deployment to dev environment
+          ENV=dev
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           ORG="${{ secrets.DOCKER_USERNAME }}"; [ -z "$ORG" ] && ORG="dan1993"
           echo "ENV=$ENV" >> $GITHUB_ENV
           echo "TAG_IMMUT=$ENV-$SHA" >> $GITHUB_ENV
@@ -43,31 +40,34 @@ jobs:
       - name: Prepare kubeconfig (optional)
         id: kube
         env:
-          KUBECONFIG_B64_DEV: ${{ secrets.KUBECONFIG_B64_DEV }}
-          KUBECONFIG_B64_HMG: ${{ secrets.KUBECONFIG_B64_HMG }}
-          KUBECONFIG_B64_PRD: ${{ secrets.KUBECONFIG_B64_PRD }}
-          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+          # Preferred: repository/organization Secrets
+          # KUBECONFIG_B64_DEV: ${{ secrets.KUBECONFIG_B64_DEV }}
+          # KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+          # Optional inline (Repository Variables) if you want to "colocar direto"
+          INLINE_KUBECONFIG_B64: ${{ vars.KUBECONFIG_B64_DEV }}
+          INLINE_KUBECONFIG_RAW: ${{ vars.KUBECONFIG_DEV_RAW }}
         run: |
-          KC=""
-          case "$ENV" in
-            dev) KC="$KUBECONFIG_B64_DEV" ;;
-            hmg) KC="$KUBECONFIG_B64_HMG" ;;
-            prd) KC="$KUBECONFIG_B64_PRD" ;;
-          esac
-          if [ -z "$KC" ]; then KC="$KUBECONFIG_B64"; fi
-          if [ -z "$KC" ]; then
+          set -e
+          KC="${KUBECONFIG_B64_DEV:-}"
+          [ -z "$KC" ] && KC="${KUBECONFIG_B64:-}"
+          if [ -n "$KC" ]; then
+            echo "$KC" | base64 -d > kubeconfig
+          elif [ -n "${INLINE_KUBECONFIG_B64:-}" ]; then
+            echo "$INLINE_KUBECONFIG_B64" | base64 -d > kubeconfig
+          elif [ -n "${INLINE_KUBECONFIG_RAW:-}" ]; then
+            printf "%s" "$INLINE_KUBECONFIG_RAW" > kubeconfig
+          else
             echo "configured=false" >> $GITHUB_OUTPUT
-            echo "::notice::No kubeconfig provided. Skipping CD."
+            echo "::notice::No kubeconfig provided via secrets or vars. Skipping CD."
             exit 0
           fi
-          echo "$KC" | base64 -d > kubeconfig
           echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
           echo "configured=true" >> $GITHUB_OUTPUT
 
       - name: Apply manifests
         if: steps.kube.outputs.configured == 'true'
         run: |
-          cd k8s/overlays/${ENV}
+          cd k8s/overlays/dev
           kustomize edit set image freelas-api=${ORG}/freelas-api:${TAG_IMMUT}
           kustomize build . | kubectl apply -f -
 
@@ -77,4 +77,3 @@ jobs:
           echo "Env: $ENV" >> $GITHUB_STEP_SUMMARY
           echo "Image: $ORG/freelas-api:${TAG_IMMUT}" >> $GITHUB_STEP_SUMMARY
           echo "Status: ${{ steps.kube.outputs.configured == 'true' && 'applied' || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
-

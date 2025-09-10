@@ -1,20 +1,20 @@
 version: "3.9"
 services:
   api:
-    image: node:20
-    working_dir: /app
-    command: sh -lc "corepack enable && yarn set version classic && yarn install && yarn dev"
+    build:
+      context: .
+      args:
+        API_PORT: 3001
+    image: freelas-api:dev
     environment:
-      - NODE_ENV=development
-      - HOST=0.0.0.0
-      - API_PORT=3001
-      
-      - REDIS_URL=redis://redis:6379
-      - USE_REAL_KAFKA=false
-      - USE_REAL_REDIS=true
-    ports: ["3001:3001"]
-    volumes:
-      - ./:/app
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      API_PORT: 3001
+      REDIS_URL: redis://redis:6379
+      USE_REAL_KAFKA: "false"
+      USE_REAL_REDIS: "true"
+    ports:
+      - "3001:3001"
     networks:
       - freelas_net
 

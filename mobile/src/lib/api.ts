@@ -2,9 +2,9 @@ import { Platform } from "react-native";
 
 export const API_URL =
   Platform.select({
-    android: "http://192.168.100.6:3000",
-    ios: "http://192.168.100.6:3000",
-    default: "http://localhost:3000",
+    android: "http://172.20.10.2:3000",
+    ios: "http://172.20.10.2:3000",
+    default: "http://172.20.10.2:3000",
   })!;
 
 export async function apiFetch(path: string, init: RequestInit & { timeoutMs?: number } = {}) {

@@ -1,8 +1,5 @@
 import { z } from "zod";
-import { nanoid } from "nanoid";
-import { Topics } from "../shared.js";
-import { redis, REQUEST_KEY, REQ_LOCK_KEY } from "../redis.js";
-import { producer } from "../kafka.js";
+import { RequestService } from "../application/RequestService.js";
 export function registerRequestRoutes(app, io) {
     app.post("/requests", async (req, rep) => {
         const schema = z.object({
@@ -14,23 +11,18 @@ export function registerRequestRoutes(app, io) {
             details: z.string().optional(),
         });
         const r = schema.parse(req.body);
-        const requestId = nanoid();
-        const payload = { ...r, requestId, createdAt: new Date().toISOString() };
-        await redis.hset(REQUEST_KEY(requestId), { json: JSON.stringify(payload) });
-        await producer.send({ topic: Topics.ServiceRequested, messages: [{ key: requestId, value: JSON.stringify(payload) }] });
-        io.to(`request:${requestId}`).emit("request:created", payload);
+        const svc = new RequestService();
+        const { requestId } = await svc.createRequest(r);
+        io.to(`request:${requestId}`).emit("request:created", { ...r, requestId });
         return { ok: true, requestId };
     });
     app.post("/requests/:id/accept", async (req, rep) => {
         const { id } = req.params;
         const { providerId } = z.object({ providerId: z.string() }).parse(req.body);
-        const lock = await redis.set(REQ_LOCK_KEY(id), providerId, "EX", 30, "NX");
-        if (!lock)
+        const svc = new RequestService();
+        const ok = await svc.acceptRequest(id, providerId);
+        if (!ok)
             return rep.status(409).send({ ok: false, reason: "Already accepted" });
-        await producer.send({
-            topic: Topics.ServiceAccepted,
-            messages: [{ key: id, value: JSON.stringify({ requestId: id, providerId, acceptedAt: new Date().toISOString() }) }],
-        });
         io.to(`request:${id}`).emit("accepted", { requestId: id, providerId });
         return { ok: true };
     });

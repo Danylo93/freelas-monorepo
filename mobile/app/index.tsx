@@ -5,7 +5,7 @@ import * as Location from "expo-location";
 import io from "socket.io-client";
 
 const API_URL =
-  Platform.OS === "android" ? "http://10.0.2.2:3001" : "http://localhost:3001";
+  Platform.OS === "android" ? "http://10.0.2.2:3001" : "http://localhost:3000";
 
 export default function Home() {
   const [providerId] = useState(() => `prov-${Math.floor(Math.random() * 10000)}`);

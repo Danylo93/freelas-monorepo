@@ -1,11 +1,24 @@
+// src/redis.ts
 import Redis from "ioredis";
 import { haversineKm } from "./shared.js";
 import { config } from "./config.js";
 class MockRedis {
     constructor() {
         this.hashes = new Map();
-        this.strings = new Map();
         this.geo = new Map();
+        this.lists = new Map();
+        this.zsets = new Map();
+    }
+    async zrem(key, member) {
+        // GEO em Redis é um sorted set; simulamos a remoção
+        const arr = this.geo.get(key) || [];
+        const idx = arr.findIndex(e => e.id === member);
+        if (idx >= 0) {
+            arr.splice(idx, 1);
+            this.geo.set(key, arr);
+            return 1;
+        }
+        return 0;
     }
     async hset(key, value) {
         const existing = this.hashes.get(key) || {};
@@ -14,42 +27,46 @@ class MockRedis {
         return "OK";
     }
     async hget(key, field) {
-        return this.hashes.get(key)?.[field] ?? null;
+        return (this.hashes.get(key) || {})[field];
     }
-    async geoadd(key, lng, lat, member) {
+    async geoadd(key, lng, lat, id) {
         const arr = this.geo.get(key) || [];
-        const idx = arr.findIndex(e => e.id === member);
+        const idx = arr.findIndex(e => e.id === id);
         if (idx >= 0)
-            arr.splice(idx, 1);
-        arr.push({ id: member, lng, lat });
+            arr[idx] = { id, lng, lat };
+        else
+            arr.push({ id, lng, lat });
         this.geo.set(key, arr);
         return 1;
     }
-    async geosearch(key, _from, lng, lat, _by, radius, _unit, _withdist, _countLabel, count, _order) {
+    async geosearch(key, _from, lng, lat, _by, radius, _unit, _order, _countLabel, count, _withdist) {
         const arr = this.geo.get(key) || [];
-        return arr
-            .map(e => [e.id, haversineKm(lat, lng, e.lat, e.lng).toString()])
+        const result = arr
+            .map(e => [e.id, (haversineKm(lat, lng, e.lat, e.lng)).toString()])
             .filter(([, d]) => parseFloat(d) <= radius)
-            .sort((a, b) => parseFloat(a[1]) - parseFloat(b[1]))
+            .sort((a, b) => _order === "ASC" ? parseFloat(a[1]) - parseFloat(b[1]) : parseFloat(b[1]) - parseFloat(a[1]))
             .slice(0, count);
+        return result;
     }
-    async set(key, value, _mode, _ttlMode, ttl, nx) {
-        if (nx === "NX" && this.strings.has(key))
-            return null;
-        this.strings.set(key, value);
-        if (_mode === "EX" && ttl) {
-            setTimeout(() => this.strings.delete(key), ttl * 1000).unref();
-        }
-        return "OK";
+    async lpush(key, value) {
+        const arr = this.lists.get(key) || [];
+        arr.unshift(value);
+        this.lists.set(key, arr);
+        return arr.length;
     }
+    async lrange(key, start, stop) {
+        const arr = this.lists.get(key) || [];
+        const end = stop < 0 ? arr.length : stop + 1;
+        return arr.slice(start, end);
+    }
+    async expire(_key, _sec) { return 1; }
+    on() { }
 }
 export const redis = config.mockRedis ? new MockRedis() : new Redis(config.redisUrl);
 if (!config.mockRedis) {
-    redis.on("error", (err) => {
-        console.warn("Redis error", err);
-    });
+    redis.on("error", (err) => console.warn("Redis error", err));
 }
 export const GEO_KEY = (t) => `geo:providers:${t}`;
 export const PROVIDER_KEY = (id) => `provider:${id}`;
-export const REQUEST_KEY = (id) => `request:${id}`;
-export const REQ_LOCK_KEY = (id) => `request:${id}:lock`;
+export const OFFERS_BY_REQUEST_KEY = (reqId) => `offers:${reqId}`;
+export const REQUEST_KEY = (reqId) => `request:${reqId}`;

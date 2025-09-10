@@ -1,25 +1,64 @@
-const isProd = process.env.NODE_ENV === "production";
+import { SASLMechanism } from "kafkajs";
 
-function envBool(name: string, fallback: boolean) {
-  const v = process.env[name];
-  if (v === undefined) return fallback;
-  return v.toLowerCase() === "true";
-}
+/** Config central tipada */
+export type AppConfig = {
+  // --- Kafka ---
+  mockKafka: boolean;
+  kafkaBrokers: string[];
+  kafkaClientId: string;
+  kafkaGroupId: string;
+  kafkaSSL: boolean;
+  kafkaSASL?:
+    | {
+        mechanism: SASLMechanism; // 'plain' | 'scram-sha-256' | 'scram-sha-512'
+        username: string;
+        password: string;
+      }
+    | undefined;
+  kafkaEnsureTopics: string[];
 
-// Defaults aligned with ArgoCD/K8s manifests
-const defaultBrokers = isProd
-  ? "redpanda.freelas.svc.cluster.local:9092"
-  : "localhost:19092"; // dev/local
+  // --- Redis / WebSocket adapter ---
+  mockRedis: boolean;
+  /** Ex.: "redis://redis:6379" (containers na mesma rede) ou "redis://localhost:6379" (host) */
+  redisUrl: string;
 
-const useRealKafka = envBool("USE_REAL_KAFKA", isProd);
-const useRealRedis = envBool("USE_REAL_REDIS", isProd);
+  // --- HTTP server ---
+  host: string; // "0.0.0.0" para aceitar conexões no container
+  port: number; // porta do Fastify
+};
 
-export const config = {
-  port: Number(process.env.API_PORT ?? 3001),
-  host: process.env.HOST ?? "0.0.0.0",
-  kafkaBrokers: (process.env.KAFKA_BROKERS ?? defaultBrokers).split(","),
+const toBool = (v?: string, def = false) =>
+  v === undefined ? def : v.toLowerCase() === "true";
+
+export const config: AppConfig = {
+  // Kafka
+  mockKafka: toBool(process.env.MOCK_KAFKA, false),
+  kafkaBrokers: (process.env.KAFKA_BROKERS ?? "localhost:19092")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+  kafkaClientId: process.env.KAFKA_CLIENT_ID ?? "freelas-api",
+  kafkaGroupId: process.env.KAFKA_GROUP_ID ?? "api-forward",
+  kafkaSSL: toBool(process.env.KAFKA_SSL, false),
+  kafkaSASL: process.env.KAFKA_SASL_MECH
+    ? {
+        mechanism: process.env.KAFKA_SASL_MECH as SASLMechanism,
+        username: process.env.KAFKA_SASL_USERNAME ?? "",
+        password: process.env.KAFKA_SASL_PASSWORD ?? "",
+      }
+    : undefined,
+  kafkaEnsureTopics: (process.env.KAFKA_TOPICS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+
+  // Redis
+  mockRedis: toBool(process.env.MOCK_REDIS, false),
+  // default amigável: se estiver rodando sua API no mesmo compose da imagem redis, use "redis://redis:6379".
+  // Se estiver no host/WSL, use "redis://localhost:6379".
   redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
-  // Mock flags (Kafka/Redis) with sensible prod defaults
-  mockKafka: !useRealKafka,
-  mockRedis: !useRealRedis,
+
+  // HTTP
+  host: process.env.HOST ?? "0.0.0.0",
+  port: Number(process.env.PORT ?? 3000),
 };

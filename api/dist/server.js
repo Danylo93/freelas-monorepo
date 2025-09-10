@@ -1,20 +1,23 @@
+// src/server.ts
 import Fastify from "fastify";
-import cors from "@fastify/cors";
 import { config } from "./config.js";
-import { setupWebsocket } from "./websocket.js";
+import matcherRoutes from "./routes/matcher.js";
 import { initKafka } from "./kafka.js";
-import { registerKafkaConsumers } from "./consumers.js";
-import { registerProviderRoutes } from "./routes/providers.js";
-import { registerRequestRoutes } from "./routes/requests.js";
-export async function startServer() {
-    const app = Fastify({ logger: true });
-    await app.register(cors, { origin: true });
-    const { io, httpServer } = setupWebsocket(app);
+import { startMatcherEngine, startOfferCollector } from "./matcher/engine.js";
+export async function buildApp() {
+    const app = Fastify({ logger: false });
+    app.get("/healthz", async () => ({ ok: true }));
+    await app.register(matcherRoutes);
+    return app;
+}
+async function main() {
     await initKafka();
-    await registerKafkaConsumers(io);
-    registerProviderRoutes(app, io);
-    registerRequestRoutes(app, io);
-    httpServer.listen(config.port, config.host, () => {
-        console.log(`API on ${config.host}:${config.port}`);
-    });
+    // inicia os background workers
+    await Promise.all([startMatcherEngine(), startOfferCollector()]);
+    const app = await buildApp();
+    await app.listen({ port: config.port, host: config.host });
+    console.log(`API on http://${config.host}:${config.port}`);
+}
+if (process.env.NODE_ENV !== "test") {
+    main().catch((err) => { console.error(err); process.exit(1); });
 }

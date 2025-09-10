@@ -14,10 +14,11 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV API_PORT=3001
+ARG API_PORT=3001
+ENV API_PORT=${API_PORT}
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json .
-EXPOSE 3001
+EXPOSE ${API_PORT}
 CMD ["node", "dist/index.js"]
 

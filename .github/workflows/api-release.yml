@@ -1,9 +1,8 @@
 name: API Release
 
 on:
-  workflow_run:
-    workflows: [API Security]
-    types: [completed]
+  push:
+    branches: [main, master, develop, hmg]
   workflow_dispatch:
     inputs:
       environment:
@@ -18,31 +17,26 @@ on:
 
 jobs:
   release:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - uses: docker/setup-buildx-action@v3
-      - name: Print previous Security result (if any)
+      - name: Print ref info
         run: |
-          echo "Security conclusion: ${{ github.event.workflow_run.conclusion || 'n/a' }}"
+          echo "Building from ${{ github.ref_name }}"
       - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME || 'dan1993' }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Resolve env/tag/version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            BR="${{ github.event.workflow_run.head_branch }}"; SHA="${{ github.event.workflow_run.head_sha }}";
-            case "$BR" in develop) ENV=dev;; hmg) ENV=hmg;; main|master) ENV=prd;; *) ENV=dev;; esac
-          else
-            ENV="${{ inputs.environment || github.event.inputs.environment || 'dev' }}"; SHA="${{ github.sha }}";
-          fi
+          BR="${{ github.ref_name }}"; SHA="${{ github.sha }}";
+          case "$BR" in develop) ENV=dev;; hmg) ENV=hmg;; main|master) ENV=prd;; *) ENV="${{ inputs.environment || github.event.inputs.environment || 'dev' }}";; esac
           ORG="${{ secrets.DOCKER_USERNAME }}"; if [ -z "$ORG" ]; then ORG="dan1993"; fi
           SHORT=$(echo "$SHA" | cut -c1-7)
           VERSION=$(node -p "require('./api/package.json').version")

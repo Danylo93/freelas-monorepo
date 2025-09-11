@@ -45,11 +45,13 @@ export async function startMatcherEngine(groupId = "matcher") {
           expiresAt: new Date(Date.now() + 30_000).toISOString(),
         };
 
-        // >>> Emite para o prestador (ProviderScreen) um "job" com a localização do cliente
+        // >>> Emite para o prestador (ProviderScreen) um "job" com detalhes da oportunidade
         getIO().to(`provider:${providerId}`).emit("job", {
           clientId: req.clientId ?? "cliente",
           lat: req.lat,
           lng: req.lng,
+          distanceKm: offer.distanceKm,
+          price: offer.priceEstimate,
           details: `${req.serviceType ?? "serviço"} a ~${offer.distanceKm}km (${offer.etaMin}min)`
         });
 

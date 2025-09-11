@@ -8,7 +8,13 @@ import { initSocket } from "./socket.js"; // <-- NOVO
 import devRoutes from "./routes/dev.js";
 
 export async function buildApp() {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: true });
+
+  // Log every incoming request on the terminal for easier debugging
+  app.addHook("onRequest", async (request) => {
+    console.log(`[REQ] ${request.method} ${request.url}`);
+  });
+
   app.get("/healthz", async () => ({ ok: true }));
 
   await app.register(matcherRoutes);

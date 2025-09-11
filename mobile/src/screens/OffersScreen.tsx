@@ -46,18 +46,20 @@ export default function OffersScreen() {
   useEffect(() => { loadOffers(); loadAccepted(); }, [requestId]);
 
   useEffect(() => {
-  if (!socket || !connected || !requestId) return;
-  socket.emit("join", `request:${requestId}`);
-  const onOffer = (offer: any) => { /* add na lista */ };
-  const onAccepted = (data: any) => { /* UI de aceito */ };
-  socket.on("offer", onOffer);
-  socket.on("accepted", onAccepted);
-  return () => {
-    socket.off("offer", onOffer);
-    socket.off("accepted", onAccepted);
-    socket.emit("leave", `request:${requestId}`);
-  };
-}, [socket, connected, requestId]);
+    if (!socket || !connected || !requestId) return;
+    socket.emit("join", `request:${requestId}`);
+
+    const onAccepted = (data: any) => setAccepted(data);
+
+    socket.on("offer", onOffer);
+    socket.on("accepted", onAccepted);
+
+    return () => {
+      socket.off("offer", onOffer);
+      socket.off("accepted", onAccepted);
+      socket.emit("leave", `request:${requestId}`);
+    };
+  }, [socket, connected, requestId]);
 
   const accept = async (offer: ServiceOffer) => {
     if (!requestId) return;

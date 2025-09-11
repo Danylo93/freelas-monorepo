@@ -27,6 +27,14 @@ export default function ClientScreen() {
         bairro: "Pinheiros",
         details: "Vazamento na pia"
       };
+
+      // check if there are providers available nearby before creating request
+      const nearRes = await apiFetch(`/providers/nearby?serviceType=${body.serviceType}&lat=${body.lat}&lng=${body.lng}&radiusKm=8&count=1`);
+      const nearData = await nearRes.json();
+      if (!nearData?.providers?.length) {
+        throw new Error("Nenhum prestador disponível nas proximidades");
+      }
+
       const res = await apiFetch("/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -34,7 +42,15 @@ export default function ClientScreen() {
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      nav.navigate("Ofertas", { requestId: data.requestId });
+      if (data?.nearest) {
+        Alert.alert(
+          "Prestador disponível",
+          `Distância: ${data.nearest.distanceKm.toFixed(2)} km\nValor estimado: R$ ${data.nearest.priceEstimate.toFixed(2)}`,
+          [ { text: "OK", onPress: () => nav.navigate("Ofertas", { requestId: data.requestId }) } ]
+        );
+      } else {
+        nav.navigate("Ofertas", { requestId: data.requestId });
+      }
     } catch (e: any) {
       Alert.alert("Erro", e?.message ?? "Não foi possível criar pedido.");
     } finally {

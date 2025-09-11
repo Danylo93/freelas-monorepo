@@ -6,6 +6,11 @@
     "android": {
       "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
     },
+     "extra": {
+      "apiUrl": "https://SEU-DOMINIO-API",             
+      "socketUrl": "wss://SEU-DOMINIO-SOCKET",         
+      "socketPath": "/socket.io"                       
+    },
     "ios": {
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Usamos sua localização para encontrar prestadores próximos."

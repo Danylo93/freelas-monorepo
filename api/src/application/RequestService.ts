@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import { redis, PROVIDER_KEY, GEO_KEY, OFFERS_BY_REQUEST_KEY } from "../redis.js";
 import { producer } from "../kafka.js";
 import { Topics } from "../shared.js";
+import { getIO } from "../socket.js";   // <-- importa aqui
 
 export class RequestService {
   async createRequest(input: { clientId: string; serviceType: string; lat: number; lng: number; bairro?: string; details?: string; }) {
@@ -15,11 +16,19 @@ export class RequestService {
   async acceptRequest(id: string, providerId: string) {
     const lock = await redis.set(OFFERS_BY_REQUEST_KEY(id), providerId, "EX", 30, "NX");
     if (!lock) return false;
+
+    // continua mandando pro Kafka
     await producer.send({
       topic: Topics.ServiceAccepted,
       messages: [{ key: id, value: JSON.stringify({ requestId: id, providerId, acceptedAt: new Date().toISOString() }) }],
     });
+
+    // >>> NOVO: emite para todos na sala request:{id}
+    getIO().to(`request:${id}`).emit("accepted", {
+      requestId: id,
+      providerId,
+    });
+
     return true;
   }
 }
-

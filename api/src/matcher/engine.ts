@@ -2,6 +2,7 @@
 import { Topics, ServiceRequest, ServiceOffer, etaMin, price } from "../shared.js";
 import { producer, createConsumer } from "../kafka.js";
 import { redis, GEO_KEY, PROVIDER_KEY, OFFERS_BY_REQUEST_KEY } from "../redis.js";
+import { getIO } from "../socket.js"; // <-- NOVO
 
 export async function startMatcherEngine(groupId = "matcher") {
   const consumer = createConsumer(groupId);
@@ -44,6 +45,15 @@ export async function startMatcherEngine(groupId = "matcher") {
           expiresAt: new Date(Date.now() + 30_000).toISOString(),
         };
 
+        // >>> Emite para o prestador (ProviderScreen) um "job" com a localização do cliente
+        getIO().to(`provider:${providerId}`).emit("job", {
+          clientId: req.clientId ?? "cliente",
+          lat: req.lat,
+          lng: req.lng,
+          details: `${req.serviceType ?? "serviço"} a ~${offer.distanceKm}km (${offer.etaMin}min)`
+        });
+
+        // Mantém sua linha de envio para Kafka (pipeline existente)
         await producer.send({
           topic: Topics.ServiceOffer,
           messages: [{ key: req.requestId, value: JSON.stringify(offer) }],
@@ -65,6 +75,9 @@ export async function startOfferCollector(groupId = "offer-collector") {
       const listKey = OFFERS_BY_REQUEST_KEY(offer.requestId);
       await redis.lpush(listKey, JSON.stringify(offer));
       await redis.expire(listKey, 60); // expira em 60s
+
+      // >>> Emite para o cliente (OffersScreen) que chegou uma oferta
+      getIO().to(`request:${offer.requestId}`).emit("offer", offer);
     },
   });
 }

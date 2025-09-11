@@ -4,6 +4,8 @@ import { useRoute } from "@react-navigation/native";
 import { useSocket } from "../hooks/useSocket";
 import { apiFetch } from "../lib/api";
 import type { ServiceOffer } from "../types";
+import { Audio } from "expo-av";
+import AlertModal from "../components/AlertModal";
 
 type RouteParams = { requestId?: string };
 
@@ -13,6 +15,8 @@ export default function OffersScreen() {
   const { socket, connected } = useSocket();
   const [offers, setOffers] = useState<ServiceOffer[]>([]);
   const [accepted, setAccepted] = useState<any | null>(null);
+  const [newOfferModal, setNewOfferModal] = useState<{ providerId: string; price: number } | null>(null);
+
 
   const loadOffers = async () => {
     if (!requestId) return;
@@ -30,24 +34,30 @@ export default function OffersScreen() {
     setAccepted(data);
   };
 
+  const onOffer = async (o: ServiceOffer) => {
+  setOffers((prev) => {
+    const exists = prev.find((x) => x.offerId === o.offerId);
+    return exists ? prev : [o, ...prev];
+  });
+  // abre modal simples + som curto (uma vez só)
+  setNewOfferModal({ providerId: o.providerId, price: o.priceEstimate });
+};
+
   useEffect(() => { loadOffers(); loadAccepted(); }, [requestId]);
 
   useEffect(() => {
-    if (!socket || !requestId) return;
-    socket.emit("join", `request:${requestId}`);
-    const onOffer = (o: ServiceOffer) => setOffers((prev) => {
-      const exists = prev.find((x) => x.offerId === o.offerId);
-      return exists ? prev : [o, ...prev];
-    });
-    const onAccepted = (a: any) => setAccepted(a);
-
-    socket.on("offer", onOffer);
-    socket.on("accepted", onAccepted);
-    return () => {
-      socket.off("offer", onOffer);
-      socket.off("accepted", onAccepted);
-    };
-  }, [socket, requestId]);
+  if (!socket || !connected || !requestId) return;
+  socket.emit("join", `request:${requestId}`);
+  const onOffer = (offer: any) => { /* add na lista */ };
+  const onAccepted = (data: any) => { /* UI de aceito */ };
+  socket.on("offer", onOffer);
+  socket.on("accepted", onAccepted);
+  return () => {
+    socket.off("offer", onOffer);
+    socket.off("accepted", onAccepted);
+    socket.emit("leave", `request:${requestId}`);
+  };
+}, [socket, connected, requestId]);
 
   const accept = async (offer: ServiceOffer) => {
     if (!requestId) return;
@@ -94,7 +104,22 @@ export default function OffersScreen() {
         ListEmptyComponent={<Text style={{ color: "#666" }}>
           {connected ? "Aguardando ofertas..." : "Conectando..."}</Text>}
       />
+        <AlertModal
+    visible={!!newOfferModal}
+    title="Nova oferta recebida"
+    message={
+        newOfferModal
+        ? `Prestador ${newOfferModal.providerId}\nPreço: R$ ${newOfferModal.price.toFixed(2)}`
+        : ""
+    }
+    confirmText="Ok"
+    cancelText="Fechar"
+    onConfirm={() => setNewOfferModal(null)}
+    onCancel={() => setNewOfferModal(null)}
+    playSound
+    />
     </View>
+    
   );
 }
 

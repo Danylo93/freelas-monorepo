@@ -9,6 +9,7 @@ import { useSocket } from "../hooks/useSocket";
 import AlertModal from "../components/AlertModal";
 import Constants from "expo-constants";
 import { Picker } from "@react-native-picker/picker";
+import { useAuth } from "../contexts/AuthContext";
 
 
 type Provider = { providerId: string; name?: string; lat?: number; lng?: number; isOnline?: boolean };
@@ -20,7 +21,8 @@ const DEFAULT_COORDS = { lat: -23.55052, lng: -46.633308 };
 const GOOGLE_MAPS_APIKEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "SUA_GOOGLE_KEY";
 
 export default function ProviderScreen() {
-  const [providerId] = useState(() => `prov-${Math.floor(Math.random() * 10000)}`);
+  const { userId } = useAuth();
+  const providerId = userId ?? `prov-${Math.floor(Math.random() * 10000)}`;
   const [pos, setPos] = useState<LatLng | null>(null);
   const [gpsLoading, setGpsLoading] = useState(true);
   const [netOnline, setNetOnline] = useState<boolean | null>(null);

@@ -1,8 +1,6 @@
 {
-  "name": "freelas-api",
-  "version": "0.1.0",
+  "name": "freelas-api-dev",
   "type": "module",
-  "packageManager": "yarn@1.22.22",
   "scripts": {
     "dev": "node --watch src/server.js"
   },
@@ -10,28 +8,8 @@
     "@fastify/cors": "^8.5.0",
     "@fastify/jwt": "^6.7.1",
     "@fastify/multipart": "^7.7.3",
-    "@fastify/rate-limit": "^9.0.0",
-    "@socket.io/redis-adapter": "^8.2.1",
-    "dotenv": "^16.4.5",
     "fastify": "^4.29.1",
-    "fastify-cors": "^6.1.0",
-    "fastify-jwt": "^4.2.0",
-    "fastify-multipart": "^5.4.0",
-    "ioredis": "^5.4.1",
-    "kafkajs": "^2.2.4",
-    "nanoid": "^5.0.7",
     "socket.io": "^4.8.1",
-    "uuid": "^13.0.0",
-    "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "@types/fastify-cors": "^0.1.0",
-    "@types/fastify-jwt": "^0.4.3",
-    "@types/fastify-multipart": "^0.5.0",
-    "@types/node": "^24.3.1",
-    "nodemon": "^3.1.10",
-    "tsx": "^4.20.5",
-    "typescript": "^5.6.2",
-    "vitest": "^2.0.5"
+    "uuid": "^13.0.0"
   }
 }

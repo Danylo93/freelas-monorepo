@@ -48,6 +48,14 @@ io.on("connection", (socket) => {
   socket.on("leave", (room) => socket.leave(room));
 });
 
+
+app.get("/healthz", async () => ({ ok: true }));
+
+// 2) log de toda request recebida
+app.addHook("onRequest", async (req, reply) => {
+  console.log(`[REQ] ${req.method} ${req.url}`);
+});
+
 /* ===== Auth ===== */
 app.post("/auth/register", async (req, reply) => {
   const { email, password, name, userType } = req.body || {};
@@ -226,7 +234,8 @@ app.post("/requests/:id/rate", { preHandler: auth(2) }, async (req, reply) => {
 
 /* ===== Start ===== */
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || "0.0.0.0";
+const HOST = process.env.HOST || "::";
 server.listen({ port: PORT, host: HOST }, () => {
   console.log(`API http://${HOST}:${PORT}  Socket path /socket.io`);
 });
+

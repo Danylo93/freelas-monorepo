@@ -1,7 +1,0 @@
-{
-  "watch": ["src", ".env"],
-  "ext": "ts,tsx,json",
-  "ignore": ["dist"],
-  "exec": "node --env-file=.env --import tsx ./src/index.ts",
-  "signal": "SIGINT"
-}

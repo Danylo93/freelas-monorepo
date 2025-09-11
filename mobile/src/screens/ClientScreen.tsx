@@ -6,10 +6,12 @@ import type { ServiceType } from "../types";
 import { useNavigation } from "@react-navigation/native";
 import type { RootTabParamList } from "../../App";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function ClientScreen() {
   const nav = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const [creating, setCreating] = useState(false);
+  const { userId } = useAuth();
 
   const createRequest = async () => {
     setCreating(true);
@@ -18,7 +20,7 @@ export default function ClientScreen() {
       if (status !== "granted") throw new Error("Sem permissão de localização.");
       const loc = await Location.getCurrentPositionAsync({});
       const body = {
-        clientId: "cli-demo",
+        clientId: userId ?? "cli-demo",
         serviceType: "plumber" as ServiceType,
         lat: loc.coords.latitude,
         lng: loc.coords.longitude,

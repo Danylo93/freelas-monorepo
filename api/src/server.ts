@@ -1,40 +1,25 @@
-// src/server.ts
 import Fastify from "fastify";
+import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import { config } from "./config.js";
-import matcherRoutes from "./routes/matcher.js";
+import { setupWebsocket } from "./websocket.js";
 import { initKafka } from "./kafka.js";
-import { startMatcherEngine, startOfferCollector } from "./matcher/engine.js";
-import { initSocket } from "./socket.js"; // <-- NOVO
-import devRoutes from "./routes/dev.js";
+import { registerKafkaConsumers } from "./consumers.js";
+import { registerProviderRoutes } from "./routes/providers.js";
+import { registerRequestRoutes } from "./routes/requests.js";
 
-export async function buildApp() {
+export async function startServer() {
   const app = Fastify({ logger: true });
-
-  // Log every incoming request on the terminal for easier debugging
-  app.addHook("onRequest", async (request) => {
-    console.log(`[REQ] ${request.method} ${request.url}`);
-  });
-
-  app.get("/healthz", async () => ({ ok: true }));
-
-  await app.register(matcherRoutes);
-  await app.register(devRoutes);
-  return app;
-}
-
-async function main() {
+  // Health endpoints first, so probes pass even se algo falhar depois
+  app.get('/healthz', async () => ({ ok: true }));
+  app.get('/livez', async () => ({ ok: true }));
+  await app.register(cors, { origin: true });
+  await app.register(rateLimit, { max: 200, timeWindow: '1 minute' });
+  const { io } = setupWebsocket(app);
   await initKafka();
-  await Promise.all([ startMatcherEngine(), startOfferCollector() ]);
-
-  const app = await buildApp();
-
+  await registerKafkaConsumers(io);
+  registerProviderRoutes(app, io);
+  registerRequestRoutes(app, io);
   await app.listen({ port: config.port, host: config.host });
-  console.log(`API on http://${config.host}:${config.port}`);
-
-  // **inicializa Socket.IO em cima do http.Server do Fastify**
-  await initSocket(app);
-}
-
-if (process.env.NODE_ENV !== "test") {
-  main().catch((err) => { console.error(err); process.exit(1); });
+  console.log(`API on ${config.host}:${config.port}`);
 }

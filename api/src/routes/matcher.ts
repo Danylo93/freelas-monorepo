@@ -2,7 +2,7 @@
 import { FastifyInstance } from "fastify";
 import { randomUUID } from "crypto";
 import { redis, GEO_KEY, PROVIDER_KEY, OFFERS_BY_REQUEST_KEY, REQUEST_KEY } from "../redis.js";
-import { Topics, ServiceRequest, ServiceAccepted } from "../shared.js";
+import { Topics, ServiceRequest, ServiceAccepted, etaMin, price } from "../shared.js";
 import { producer } from "../kafka.js";
 
 /**
@@ -181,6 +181,20 @@ export default async function matcherRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "serviceType, lat, lng são obrigatórios" });
       }
 
+      // Verifica se existe ao menos um prestador disponível na região
+      const near: any[] = await (redis as any).geosearch(
+        GEO_KEY(b.serviceType),
+        "FROMLONLAT", b.lng, b.lat,
+        "BYRADIUS", 8, "km",
+        "WITHDIST", "COUNT", 1, "ASC"
+      );
+      if (!near.length) {
+        return reply.code(404).send({ error: "no_providers" });
+      }
+      const distKm = Number(near[0][1]);
+      const _eta = etaMin(distKm);
+      const priceEstimate = price(distKm, _eta);
+
       const requestId = b.requestId ?? randomUUID();
       const sr: ServiceRequest = {
         requestId,
@@ -198,7 +212,7 @@ export default async function matcherRoutes(app: FastifyInstance) {
       // publica no Kafka (matcher engine vai gerar ofertas)
       await producer.send({ topic: Topics.ServiceRequested, messages: [{ key: sr.requestId, value: JSON.stringify(sr) }] });
 
-      return { requestId };
+      return { requestId, nearest: { distanceKm: Math.round(distKm * 100) / 100, etaMin: _eta, priceEstimate } };
     } catch (e: any) {
       return reply.code(500).send({ error: "internal_error", message: e?.message ?? String(e) });
     }

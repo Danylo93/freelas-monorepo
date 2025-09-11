@@ -31,7 +31,7 @@ export default function ProviderScreen() {
 
   const [destination, setDestination] = useState<LatLng | null>(null);
   const [jobModalVisible, setJobModalVisible] = useState(false);
-  const [pendingJob, setPendingJob] = useState<{ clientId: string; lat: number; lng: number; details?: string } | null>(null);
+  const [pendingJob, setPendingJob] = useState<{ clientId: string; lat: number; lng: number; distanceKm?: number; price?: number; details?: string } | null>(null);
 
   
   const mapRef = useRef<MapView>(null);
@@ -88,7 +88,7 @@ export default function ProviderScreen() {
       socket.emit("join", `provider:${providerId}`);
 
       // <<< OPORTUNIDADE: ajuste o nome do evento conforme seu backend >>>
-      const onJob = (payload: { clientId: string; lat: number; lng: number; details?: string }) => {
+      const onJob = (payload: { clientId: string; lat: number; lng: number; distanceKm?: number; price?: number; details?: string }) => {
         setPendingJob(payload);
         setJobModalVisible(true); // abre modal com som
       };
@@ -121,7 +121,7 @@ export default function ProviderScreen() {
       // console.log("join ack:", ack);
     });
     // listener de oportunidades
-    const onJob = (payload: { clientId: string; lat: number; lng: number; details?: string }) => {
+    const onJob = (payload: { clientId: string; lat: number; lng: number; distanceKm?: number; price?: number; details?: string }) => {
       setPendingJob(payload);
       setJobModalVisible(true);
     };
@@ -269,7 +269,7 @@ export default function ProviderScreen() {
       <AlertModal
         visible={jobModalVisible}
         title="Nova oportunidade!"
-        message={pendingJob ? `Cliente: ${pendingJob.clientId}\n${pendingJob.details ?? "Detalhes do serviço"}` : ""}
+        message={pendingJob ? `Cliente: ${pendingJob.clientId}\nDistância: ${pendingJob.distanceKm?.toFixed(2) ?? "?"} km\nGanho: R$ ${pendingJob.price?.toFixed(2) ?? "?"}\n${pendingJob.details ?? "Detalhes do serviço"}` : ""}
         confirmText="Aceitar"
         cancelText="Recusar"
         onConfirm={acceptJob}

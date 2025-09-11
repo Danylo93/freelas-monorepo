@@ -13,6 +13,8 @@ export async function apiFetch(path: string, init: RequestInit & { timeoutMs?: n
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
+    // simple console log so every request appears in Expo terminal
+    console.log(`[apiFetch] ${rest.method ?? 'GET'} ${path}`);
     const res = await fetch(`${API_URL}${path}`, { ...rest, signal: ctrl.signal });
     return res;
   } finally {

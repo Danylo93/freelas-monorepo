@@ -7,13 +7,25 @@ import { useNavigation } from "@react-navigation/native";
 import type { RootTabParamList } from "../../App";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { useAuth } from "../contexts/AuthContext";
+import { useRequests } from "../contexts/RequestsContext";
 
 export default function ClientScreen() {
   const nav = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const [creating, setCreating] = useState(false);
   const { userId } = useAuth();
+  const { addRequest, requests } = useRequests();
 
-  const createRequest = async () => {
+  const services: { type: ServiceType; label: string }[] = [
+    { type: "plumber", label: "Encanador" },
+    { type: "electrician", label: "Eletricista" },
+    { type: "carpenter", label: "Carpinteiro" },
+    { type: "general", label: "Serviço Geral" },
+  ];
+
+  const hasActive = (t: ServiceType) =>
+    requests.some(r => r.serviceType === t && r.status !== "completed");
+
+  const createRequest = async (serviceType: ServiceType) => {
     setCreating(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -21,7 +33,7 @@ export default function ClientScreen() {
       const loc = await Location.getCurrentPositionAsync({});
       const body = {
         clientId: userId ?? "cli-demo",
-        serviceType: "plumber" as ServiceType,
+        serviceType,
         lat: loc.coords.latitude,
         lng: loc.coords.longitude,
         bairro: "Pinheiros",
@@ -51,6 +63,7 @@ export default function ClientScreen() {
       } else {
         nav.navigate("Ofertas", { requestId: data.requestId });
       }
+      addRequest(data.requestId, serviceType);
     } catch (e: any) {
       Alert.alert("Erro", e?.message ?? "Não foi possível criar pedido.");
     } finally {
@@ -62,9 +75,16 @@ export default function ClientScreen() {
     <View style={styles.root}>
       <Text style={styles.title}>Cliente</Text>
       <Text style={styles.sub}>Crie um pedido no seu local atual e veja ofertas chegando em tempo real.</Text>
-      <TouchableOpacity style={styles.btn} onPress={createRequest} disabled={creating}>
-        <Text style={styles.btnText}>{creating ? "Criando..." : "Pedir encanador aqui"}</Text>
-      </TouchableOpacity>
+      {services.map((s) => (
+        <TouchableOpacity
+          key={s.type}
+          style={[styles.btn, hasActive(s.type) && styles.btnDisabled]}
+          onPress={() => createRequest(s.type)}
+          disabled={creating || hasActive(s.type)}
+        >
+          <Text style={styles.btnText}>{s.label}</Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
@@ -74,5 +94,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: "700" },
   sub: { color: "#666" },
   btn: { backgroundColor: "#111", padding: 14, borderRadius: 12, alignItems: "center" },
-  btnText: { color: "#fff", fontWeight: "700" }
+  btnText: { color: "#fff", fontWeight: "700" },
+  btnDisabled: { opacity: 0.5 }
 });

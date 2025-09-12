@@ -1,6 +1,6 @@
 "use client";
-import { MapContainer, TileLayer, Marker, Polyline, Popup } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
+import React, { useEffect, useState } from "react";
+import { GoogleMap, Marker, DirectionsRenderer, useJsApiLoader } from "@react-google-maps/api";
 
 export default function Map({
   client,
@@ -9,22 +9,50 @@ export default function Map({
   client: { lat: number; lng: number };
   provider?: { lat: number; lng: number };
 }) {
-  if (typeof window === "undefined") return null; // guarda extra
+  const { isLoaded } = useJsApiLoader({
+    id: "google-map",
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "",
+  });
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+
+  useEffect(() => {
+    if (!isLoaded || !provider) return;
+    const service = new google.maps.DirectionsService();
+    service.route(
+      { origin: client, destination: provider, travelMode: google.maps.TravelMode.DRIVING },
+      (res, status) => {
+        if (status === google.maps.DirectionsStatus.OK && res) {
+          setDirections(res);
+        }
+      }
+    );
+  }, [isLoaded, client, provider]);
+
+  if (!isLoaded) return <p>Mapa não disponível</p>;
+
+  const eta = directions?.routes?.[0]?.legs?.[0]?.duration?.text;
 
   return (
-    <MapContainer center={[client.lat, client.lng]} zoom={13} style={{ height: "100%", width: "100%" }}>
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-      <Marker position={[client.lat, client.lng]}>
-        <Popup>Cliente</Popup>
-      </Marker>
-      {provider && (
-        <>
-          <Marker position={[provider.lat, provider.lng]}>
-            <Popup>Prestador</Popup>
-          </Marker>
-          <Polyline positions={[[client.lat, client.lng], [provider.lat, provider.lng]]} />
-        </>
+    <GoogleMap mapContainerStyle={{ height: "100%", width: "100%" }} center={client} zoom={13}>
+      <Marker position={client} label="C" />
+      {provider && <Marker position={provider} label="P" />}
+      {directions && <DirectionsRenderer directions={directions} options={{ suppressMarkers: true }} />}
+      {eta && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 8,
+            left: 8,
+            background: "#fff",
+            padding: "4px 8px",
+            borderRadius: 4,
+            boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+          }}
+        >
+          Chegada {eta}
+        </div>
       )}
-    </MapContainer>
+    </GoogleMap>
   );
 }
+

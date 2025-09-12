@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from "react-native";
-import { useRoute } from "@react-navigation/native";
+import { useRoute, useNavigation } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { RootTabParamList } from "../../App";
 import { useSocket } from "../hooks/useSocket";
 import { apiFetch } from "../lib/api";
 import type { ServiceOffer } from "../types";
@@ -12,6 +14,7 @@ type RouteParams = { requestId?: string };
 
 export default function OffersScreen() {
   const route = useRoute();
+  const nav = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const { requestId } = (route.params as RouteParams) || {};
   const { socket, connected } = useSocket();
   const [offers, setOffers] = useState<ServiceOffer[]>([]);
@@ -85,6 +88,9 @@ export default function OffersScreen() {
   return (
     <View style={styles.root}>
       <Text style={styles.title}>Ofertas</Text>
+      <TouchableOpacity style={styles.trackBtn} onPress={() => nav.navigate("Pedidos")}>
+        <Text style={styles.btnText}>Pedidos em andamento</Text>
+      </TouchableOpacity>
       {!requestId && <Text style={styles.sub}>Crie um pedido na aba Cliente.</Text>}
       {accepted && (
         <View style={styles.accepted}>
@@ -104,7 +110,11 @@ export default function OffersScreen() {
             <Text>Distância: {item.distanceKm.toFixed(2)} km</Text>
             <Text>ETA: {item.etaMin} min</Text>
             <Text>Preço estimado: R$ {item.priceEstimate.toFixed(2)}</Text>
-            <TouchableOpacity style={styles.btn} onPress={() => accept(item)}>
+            <TouchableOpacity
+              style={[styles.btn, accepted && styles.btnDisabled]}
+              onPress={() => accept(item)}
+              disabled={!!accepted}
+            >
               <Text style={styles.btnText}>Aceitar</Text>
             </TouchableOpacity>
           </View>
@@ -137,7 +147,9 @@ const styles = StyleSheet.create({
   sub: { color: "#666" },
   card: { backgroundColor: "#fff", padding: 12, borderRadius: 12, elevation: 3 },
   cardTitle: { fontWeight: "700", marginBottom: 4 },
+  trackBtn: { backgroundColor: "#111", padding: 10, borderRadius: 10, alignItems: "center", marginBottom: 8 },
   btn: { marginTop: 8, backgroundColor: "#111", padding: 10, borderRadius: 10, alignItems: "center" },
   btnText: { color: "#fff", fontWeight: "700" },
+  btnDisabled: { opacity: 0.5 },
   accepted: { backgroundColor: "#E6FFED", borderRadius: 12, padding: 12, gap: 4 }
 });

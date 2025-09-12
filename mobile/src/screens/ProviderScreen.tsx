@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Alert, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import * as Location from "expo-location";
 import * as Network from "expo-network";
@@ -142,6 +142,7 @@ export default function ProviderScreen() {
 
   const coords = pos ?? DEFAULT_COORDS;
   const canCallApi = apiOnline === true;
+  const hasGoogleKey = GOOGLE_MAPS_APIKEY && GOOGLE_MAPS_APIKEY !== "SUA_GOOGLE_KEY";
 
   const goOnline = async () => {
     if (!pos) { Alert.alert("Localização necessária", "Ative a localização para ficar online."); return; }
@@ -229,23 +230,31 @@ export default function ProviderScreen() {
         {dest && (
           <>
             <Marker coordinate={dest} title="Cliente" />
-            <MapViewDirections
-              origin={origin}
-              destination={dest}
-              apikey={GOOGLE_MAPS_APIKEY}
-              strokeWidth={5}
-              strokeColor="#1E3A8A"
-              optimizeWaypoints
-              mode="DRIVING"
-              onReady={(res) => {
-                // fit animado de toda a rota (efeito Uber)
-                mapRef.current?.fitToCoordinates(res.coordinates, {
-                  edgePadding: { top: 120, right: 60, bottom: 320, left: 60 },
-                  animated: true
-                });
-              }}
-              onError={(e) => console.log("Directions error:", e)}
-            />
+            {hasGoogleKey ? (
+              <MapViewDirections
+                origin={origin}
+                destination={dest}
+                apikey={GOOGLE_MAPS_APIKEY}
+                strokeWidth={5}
+                strokeColor="#1E3A8A"
+                optimizeWaypoints
+                mode="DRIVING"
+                onReady={(res) => {
+                  // fit animado de toda a rota (efeito Uber)
+                  mapRef.current?.fitToCoordinates(res.coordinates, {
+                    edgePadding: { top: 120, right: 60, bottom: 320, left: 60 },
+                    animated: true
+                  });
+                }}
+                onError={(e) => console.log("Directions error:", e)}
+              />
+            ) : (
+              <Polyline
+                coordinates={[origin, dest]}
+                strokeWidth={5}
+                strokeColor="#1E3A8A"
+              />
+            )}
           </>
         )}
       </MapView>

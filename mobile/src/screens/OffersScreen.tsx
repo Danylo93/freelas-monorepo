@@ -6,6 +6,7 @@ import { apiFetch } from "../lib/api";
 import type { ServiceOffer } from "../types";
 import { Audio } from "expo-av";
 import AlertModal from "../components/AlertModal";
+import { useRequests } from "../contexts/RequestsContext";
 
 type RouteParams = { requestId?: string };
 
@@ -16,6 +17,7 @@ export default function OffersScreen() {
   const [offers, setOffers] = useState<ServiceOffer[]>([]);
   const [accepted, setAccepted] = useState<any | null>(null);
   const [newOfferModal, setNewOfferModal] = useState<{ providerId: string; price: number } | null>(null);
+  const { markAccepted } = useRequests();
 
 
   const loadOffers = async () => {
@@ -49,7 +51,10 @@ export default function OffersScreen() {
     if (!socket || !connected || !requestId) return;
     socket.emit("join", `request:${requestId}`);
 
-    const onAccepted = (data: any) => setAccepted(data);
+    const onAccepted = (data: any) => {
+      setAccepted(data);
+      markAccepted(data.requestId);
+    };
 
     socket.on("offer", onOffer);
     socket.on("accepted", onAccepted);
@@ -74,6 +79,7 @@ export default function OffersScreen() {
     }
     const data = await res.json();
     setAccepted(data.accepted);
+    markAccepted(requestId);
   };
 
   return (
